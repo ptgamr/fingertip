@@ -56,6 +56,15 @@
         font-size: 16px;
         cursor: pointer;
     }
+    
+    .feature-title {
+        font-weight: 600;
+        font-size: 18px;
+        margin-top: 30px;
+        margin-bottom: 15px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+    }
 </style>
 
 <body>
@@ -63,9 +72,10 @@
     <div class="container">
 
         <div class="title">Webcam Preview Options</div>
+        
+        <div class="feature-title">Camera Appearance</div>
 
         <div class="section">
-
             <label for="shape">Shape:</label>
             <select class="select" id="shape">
                 <option value="oval" selected="selected">Oval</option>
@@ -73,7 +83,6 @@
                 <option value="square">Square</option>
                 <option value="circle">Circle</option>
             </select>
-
         </div>
 
         <div class="section">
@@ -84,8 +93,6 @@
                 <option value="rightTop">Right Top</option>
                 <option value="leftTop">Left Top</option>
             </select>
-
-
         </div>
 
         <div class="section">
@@ -94,6 +101,8 @@
                 Mirror mode
             </label>
         </div>
+        
+        <div class="feature-title">Camera Behavior</div>
 
         <div class="section">
             <label for="trackTabs">
@@ -107,6 +116,19 @@
                 <input type="checkbox" id="trackPresentation" checked="checked">
                 Track Full Screen Presentation
             </label>
+        </div>
+        
+        <div class="feature-title">Hand Tracking</div>
+        
+        <div class="section">
+            <label for="handTracking">
+                <input type="checkbox" id="handTracking" checked="checked">
+                Enable Hand Tracking
+            </label>
+            <p style="margin-top: 5px; font-size: 14px; color: #666;">
+                Uses your index finger as a pointer to interact with web pages.
+                Hold index and middle fingers close together to click.
+            </p>
         </div>
 
         <div>

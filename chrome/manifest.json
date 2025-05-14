@@ -7,13 +7,18 @@
       "default_icon": "res/bar-icon.png"
    },
    "default_locale": "en",
-   "description": "Control website using your hand.",
+   "description": "Control website using your hand. Track finger movements with AI.",
    "icons": {
       "128": "res/128.png"
    },
    "manifest_version": 2,
    "name": "FingerTip",
    "options_page": "options.html",
+   "content_security_policy": "script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; object-src 'self'",
    "permissions": [ "tabs", "activeTab", "storage", "http://*/*", "https://*/*" ],
+   "web_accessible_resources": [
+      "res/hand-pointer.css",
+      "src/handTracking.js"
+   ],
    "version": "0.0.1"
 }

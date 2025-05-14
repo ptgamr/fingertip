@@ -54,6 +54,9 @@ WPRightMenu.prototype.initialize = function (element) {
         return;
       }
 
+      // Update hand tracking status in menu before showing it
+      _this.updateMenuStatus(element);
+
       element.appendChild(menu);
       _this.positionMenu(e);
 
@@ -80,7 +83,22 @@ WPRightMenu.prototype.initialize = function (element) {
       ) {
         if (_this.onMenuClick) {
           var data = e.target.dataset;
-          _this.onMenuClick(data.key, data.value);
+
+          // Convert string to boolean for handTracking option
+          var value = data.value;
+          if (data.key === "handTracking") {
+            value = value === "true";
+          }
+
+          _this.onMenuClick(data.key, value);
+
+          // Update menu item text for handTracking
+          if (data.key === "handTracking") {
+            e.target.dataset.value = (!value).toString();
+            e.target.textContent = value
+              ? "Disable Hand Tracking"
+              : "Enable Hand Tracking";
+          }
         }
       }
 
@@ -89,6 +107,22 @@ WPRightMenu.prototype.initialize = function (element) {
     },
     false
   );
+};
+
+WPRightMenu.prototype.updateMenuStatus = function (element) {
+  // Update the hand tracking menu item status
+  if (element.handTracking) {
+    const isActive = element.handTracking.isTracking;
+    const handTrackingMenuItem = this.menu.querySelector(
+      '[data-key="handTracking"]'
+    );
+    if (handTrackingMenuItem) {
+      handTrackingMenuItem.dataset.value = (!isActive).toString();
+      handTrackingMenuItem.textContent = isActive
+        ? "Disable Hand Tracking"
+        : "Enable Hand Tracking";
+    }
+  }
 };
 
 WPRightMenu.prototype.hide = function () {
@@ -104,11 +138,14 @@ WPRightMenu.prototype.buildMenu = function () {
     '  <div class="wp-menu-item" data-key="position" data-value="leftBottom">Left Bottom</div>' +
     '  <div class="wp-menu-item" data-key="position" data-value="rightBottom">Right Bottom</div>' +
     '  <div class="wp-menu-item" data-key="position" data-value="rightTop">Right Top</div>' +
-    '  <div class="wp-menu-item-separator" data-key="position" data-value="leftTop">Left Top</div>' +
+    '  <div class="wp-menu-item" data-key="position" data-value="leftTop">Left Top</div>' +
+    '  <div class="wp-menu-item-separator"></div>' +
     '  <div class="wp-menu-item" data-key="shape" data-value="oval">Oval</div>' +
     '  <div class="wp-menu-item" data-key="shape" data-value="rectangle">Rectangle</div>' +
     '  <div class="wp-menu-item" data-key="shape" data-value="square">Square</div>' +
     '  <div class="wp-menu-item" data-key="shape" data-value="circle">Circle</div>' +
+    '  <div class="wp-menu-item-separator"></div>' +
+    '  <div class="wp-menu-item" data-key="handTracking" data-value="true">Enable Hand Tracking</div>' +
     "</div>";
 
   return menuContainer;

@@ -6,6 +6,7 @@ function saveOptions() {
   var mirror = document.getElementById("mirror").checked;
   var trackTabs = document.getElementById("trackTabs").checked;
   var trackPresentation = document.getElementById("trackPresentation").checked;
+  var handTracking = document.getElementById("handTracking").checked;
 
   chrome.storage.sync.set(
     {
@@ -14,6 +15,7 @@ function saveOptions() {
       mirror: mirror,
       trackTabs: trackTabs,
       trackPresentation: trackPresentation,
+      handTracking: handTracking,
     },
     function () {
       // Update status to let user know options were saved.
@@ -35,6 +37,7 @@ function restoreOptions() {
       mirror: true,
       trackTabs: true,
       trackPresentation: true,
+      handTracking: true,
     },
     function (items) {
       document.getElementById("shape").value = items.shape;
@@ -43,6 +46,7 @@ function restoreOptions() {
       document.getElementById("trackTabs").checked = items.trackTabs;
       document.getElementById("trackPresentation").checked =
         items.trackPresentation;
+      document.getElementById("handTracking").checked = items.handTracking;
     }
   );
 }
