@@ -146,6 +146,10 @@ class WPCamera {
       return;
     }
 
+    // Calculate scale factors to map video coordinates to canvas coordinates
+    const scaleX = this.canvas.width / this.video.videoWidth;
+    const scaleY = this.canvas.height / this.video.videoHeight;
+
     // Don't clear canvas - video is already drawn
     // Apply mirroring if enabled (matching the video mirroring)
     this.ctx.save();
@@ -161,8 +165,14 @@ class WPCamera {
         this.ctx.strokeStyle = "#00ff00";
         this.ctx.lineWidth = 2;
 
+        // Scale landmarks to match canvas size
+        const scaledLandmarks = prediction.landmarks.map(([x, y]) => [
+          x * scaleX,
+          y * scaleY,
+        ]);
+
         // Draw landmarks
-        prediction.landmarks.forEach((landmark) => {
+        scaledLandmarks.forEach((landmark) => {
           const [x, y] = landmark;
           this.ctx.beginPath();
           this.ctx.arc(x, y, 4, 0, 2 * Math.PI);
@@ -170,14 +180,14 @@ class WPCamera {
         });
 
         // Draw connections between keypoints
-        this.drawHandConnections(prediction.landmarks);
+        this.drawHandConnections(scaledLandmarks);
       }
     });
 
     this.ctx.restore();
   }
 
-  drawHandConnections(landmarks: number[][]): void {
+  drawHandConnections(scaledLandmarks: number[][]): void {
     if (!this.ctx) return;
 
     // Define hand connections based on hand anatomy
@@ -213,9 +223,9 @@ class WPCamera {
     this.ctx.lineWidth = 2;
 
     connections.forEach(([startIdx, endIdx]) => {
-      if (landmarks[startIdx] && landmarks[endIdx]) {
-        const [startX, startY] = landmarks[startIdx];
-        const [endX, endY] = landmarks[endIdx];
+      if (scaledLandmarks[startIdx] && scaledLandmarks[endIdx]) {
+        const [startX, startY] = scaledLandmarks[startIdx];
+        const [endX, endY] = scaledLandmarks[endIdx];
 
         this.ctx.beginPath();
         this.ctx.moveTo(startX, startY);
