@@ -1,0 +1,44 @@
+.wp-main-frame {
+    position: fixed;
+    z-index: 500500500;
+    background: none;
+    border: none;
+}
+
+.wp-right-menu {
+    outline: none;
+    user-select: none;
+    -webkit-user-select: none;
+    width: 150px;
+    box-shadow: 3px 3px 5px #888888;
+    background: white;
+    border: 1px solid grey;
+    border-radius: 2px;
+    padding: 3px 5px;
+    position: fixed;
+    display: block;
+    z-index: 10;
+    color: #333;
+    font-size: 14px;
+    font-weight: normal;
+}
+
+.wp-menu-item {
+    height: 20px;
+}
+
+.wp-menu-item:hover {
+    background-color: #6CB5FF;
+    cursor: pointer;
+}
+
+.wp-menu-item-separator {
+    height: 22px;
+    border-style: none;
+    border-bottom: thin solid #888888;
+}
+
+.wp-menu-item-separator:hover {
+    background-color: #6CB5FF;
+    cursor: pointer;
+} 

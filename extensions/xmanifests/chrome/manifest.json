@@ -1,28 +1,32 @@
 {
   "manifest_version": 3,
   "name": "FingerTip",
-  "version": "1.0.0-dev",
+  "version": "1.0.0",
   "description": "Control website using your hand.",
   "icons": {
     "128": "res/128.png"
   },
-  "browser_action": {
+  "action": {
     "default_icon": "res/bar-icon.png"
   },
-  "action": {
-    "default_icon": "fingertip-logo.png",
-    "default_popup": "popup.html"
-  },
-  "permissions": [ "tabs", "activeTab", "storage", "http://*/*", "https://*/*" ],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "notifications",
+    "http://*/*",
+    "https://*/*"
+  ],
   "options_page": "options.html",
   "background": {
-    "service_worker": "src/background.js",
+    "service_worker": "background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost:5173/*", "https://awsdash.com/*"],
-      "js": ["content-scripts/content-script.js"]
+      "matches": ["https://*/*"],
+      "js": ["content-scripts/content-script.js"],
+      "css": ["res/wp-style.css"]
     }
   ]
 }
