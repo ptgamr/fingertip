@@ -1,7 +1,11 @@
 /// <reference types="chrome"/>
 
-// FingerTip Content Script
+// FingerTip Content Script with Handpose Tracking
 // Migrated and combined from chrome/src/{camera.js, start.js, terminate.js, rightMenu.js}
+
+import * as tf from "@tensorflow/tfjs";
+import "@tensorflow/tfjs-backend-webgl";
+import * as handpose from "@tensorflow-models/handpose";
 
 interface Settings {
   shape: string;
@@ -10,18 +14,31 @@ interface Settings {
   position: string;
   trackTabs: boolean;
   trackPresentation: boolean;
+  showHandpose: boolean;
+}
+
+interface HandPose {
+  annotations: {
+    [key: string]: number[][];
+  };
+  landmarks: number[][];
 }
 
 class WPCamera {
   frame: HTMLElement;
   settings: Settings;
   video: HTMLVideoElement;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
   videoStream: MediaStream | null = null;
   isRunning: boolean = false;
   isWaitingStream: boolean = false;
   fullscreenElementAttached: Element | null = null;
   container: HTMLDivElement;
   observer?: MutationObserver;
+  handposeModel: handpose.HandPose | null = null;
+  handposeLoaded: boolean = false;
+  animationId: number | null = null;
 
   constructor(element: HTMLElement, settings: Settings) {
     this.frame = element;
@@ -32,31 +49,223 @@ class WPCamera {
       position: "leftBottom",
       trackTabs: true,
       trackPresentation: true,
+      showHandpose: true,
     };
+
     this.video = document.createElement("video");
+    this.canvas = document.createElement("canvas");
+    this.ctx = this.canvas.getContext("2d")!;
     this.videoStream = null;
     this.isRunning = false;
     this.isWaitingStream = false;
     this.fullscreenElementAttached = null;
 
     this.container = document.createElement("div");
+    this.container.style.position = "relative";
+
+    // Hide the video element since we'll render it to canvas
+    this.video.style.display = "none";
+
+    // Add video and canvas to container
     this.container.appendChild(this.video);
+    this.container.appendChild(this.canvas);
+
+    // Canvas will show the video content + handpose overlay
+    this.canvas.style.display = "block";
+
     element.appendChild(this.container);
+
+    // Load handpose model
+    this.loadHandposeModel();
+  }
+
+  async loadHandposeModel(): Promise<void> {
+    try {
+      console.log("Loading handpose model...");
+      await tf.ready();
+      this.handposeModel = await handpose.load();
+      this.handposeLoaded = true;
+      console.log("Handpose model loaded successfully");
+    } catch (error) {
+      console.error("Failed to load handpose model:", error);
+    }
+  }
+
+  async detectHands(): Promise<void> {
+    if (
+      !this.handposeModel ||
+      !this.handposeLoaded ||
+      !this.video ||
+      this.video.readyState !== 4
+    ) {
+      return;
+    }
+
+    try {
+      // Detect hands and draw keypoints on top of video
+      const predictions = await this.handposeModel.estimateHands(this.video);
+      this.drawHandKeypoints(predictions as HandPose[]);
+    } catch (error) {
+      console.error("Hand detection error:", error);
+    }
+  }
+
+  drawVideoToCanvas(): void {
+    if (!this.ctx || !this.video || this.video.readyState !== 4) {
+      return;
+    }
+
+    // Clear the canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    // Apply mirroring if enabled
+    this.ctx.save();
+    if (this.settings.mirror) {
+      this.ctx.scale(-1, 1);
+      this.ctx.translate(-this.canvas.width, 0);
+    }
+
+    // Draw the video frame to canvas
+    this.ctx.drawImage(
+      this.video,
+      0,
+      0,
+      this.video.videoWidth,
+      this.video.videoHeight,
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height
+    );
+
+    this.ctx.restore();
+  }
+
+  drawHandKeypoints(predictions: HandPose[]): void {
+    if (!this.ctx || !this.settings.showHandpose) {
+      return;
+    }
+
+    // Don't clear canvas - video is already drawn
+    // Apply mirroring if enabled (matching the video mirroring)
+    this.ctx.save();
+    if (this.settings.mirror) {
+      this.ctx.scale(-1, 1);
+      this.ctx.translate(-this.canvas.width, 0);
+    }
+
+    predictions.forEach((prediction) => {
+      // Draw keypoints
+      if (prediction.landmarks) {
+        this.ctx.fillStyle = "#ff0000";
+        this.ctx.strokeStyle = "#00ff00";
+        this.ctx.lineWidth = 2;
+
+        // Draw landmarks
+        prediction.landmarks.forEach((landmark) => {
+          const [x, y] = landmark;
+          this.ctx.beginPath();
+          this.ctx.arc(x, y, 4, 0, 2 * Math.PI);
+          this.ctx.fill();
+        });
+
+        // Draw connections between keypoints
+        this.drawHandConnections(prediction.landmarks);
+      }
+    });
+
+    this.ctx.restore();
+  }
+
+  drawHandConnections(landmarks: number[][]): void {
+    if (!this.ctx) return;
+
+    // Define hand connections based on hand anatomy
+    const connections = [
+      // Thumb
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      // Index finger
+      [0, 5],
+      [5, 6],
+      [6, 7],
+      [7, 8],
+      // Middle finger
+      [0, 9],
+      [9, 10],
+      [10, 11],
+      [11, 12],
+      // Ring finger
+      [0, 13],
+      [13, 14],
+      [14, 15],
+      [15, 16],
+      // Pinky
+      [0, 17],
+      [17, 18],
+      [18, 19],
+      [19, 20],
+    ];
+
+    this.ctx.strokeStyle = "#00ff00";
+    this.ctx.lineWidth = 2;
+
+    connections.forEach(([startIdx, endIdx]) => {
+      if (landmarks[startIdx] && landmarks[endIdx]) {
+        const [startX, startY] = landmarks[startIdx];
+        const [endX, endY] = landmarks[endIdx];
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX, startY);
+        this.ctx.lineTo(endX, endY);
+        this.ctx.stroke();
+      }
+    });
+  }
+
+  startVideoRenderingLoop(): void {
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+    }
+
+    const renderLoop = async () => {
+      // Always render video to canvas
+      this.drawVideoToCanvas();
+
+      // Only detect hands if handpose is enabled
+      if (this.settings.showHandpose) {
+        await this.detectHands();
+      }
+
+      this.animationId = requestAnimationFrame(renderLoop);
+    };
+
+    renderLoop();
+  }
+
+  stopHandposeDetection(): void {
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+
+    if (this.ctx) {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
   }
 
   setFlip(): void {
-    const containerStyle = this.container.style;
-    const transform = this.settings.mirror ? "scaleX(-1)" : "";
-    const flip = this.settings.mirror ? "FlipH" : "";
-
-    containerStyle.webkitTransform = transform;
-    containerStyle.transform = transform;
-    containerStyle.filter = flip;
+    // Mirroring is now handled in the canvas rendering
+    // No need to transform the container since video is hidden
+    // and canvas handles its own mirroring
   }
 
   setShape(): void {
     const shape = this.settings.shape || "oval";
     const video = this.video;
+    const canvas = this.canvas;
     const container = this.container;
     const width = this.settings.width || 240;
     const height = (width * 3) / 4;
@@ -68,27 +277,37 @@ class WPCamera {
     video.style.marginBottom = "0";
     container.style.overflow = "hidden";
 
+    // Set canvas size to match video
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
     switch (shape) {
       case "rectangle":
         video.style.marginLeft = "0px";
+        canvas.style.marginLeft = "0px";
         container.style.width = `${width}px`;
         container.style.height = `${height}px`;
         container.style.borderRadius = "0";
         break;
       case "square":
         video.style.marginLeft = `${leftShift}px`;
+        canvas.style.marginLeft = `${leftShift}px`;
         container.style.width = `${height}px`;
         container.style.height = `${height}px`;
         container.style.borderRadius = "0";
         break;
       case "circle":
         video.style.marginLeft = `${leftShift}px`;
+        canvas.style.marginLeft = `${leftShift}px`;
         container.style.width = `${height}px`;
         container.style.height = `${height}px`;
         container.style.borderRadius = "50%";
         break;
       default:
         video.style.marginLeft = "0";
+        canvas.style.marginLeft = "0";
         container.style.width = `${width}px`;
         container.style.height = `${height}px`;
         container.style.borderRadius = `${height}px`;
@@ -130,6 +349,8 @@ class WPCamera {
   }
 
   updateSettings(newSettings: Settings): void {
+    const oldShowHandpose = this.settings.showHandpose;
+
     if (newSettings) {
       this.settings = newSettings;
     }
@@ -137,6 +358,10 @@ class WPCamera {
     this.setFlip();
     this.setShape();
     this.setPosition();
+
+    // Handle handpose detection toggle
+    // Note: Video rendering loop is always running, handpose is toggled within the loop
+    // No need to start/stop the loop when toggling handpose
   }
 
   watchPunch(): void {
@@ -204,6 +429,9 @@ class WPCamera {
       this.isWaitingStream = false;
 
       this.watchPunch();
+
+      // Start video rendering loop once video is ready
+      this.startVideoRenderingLoop();
     };
 
     this.videoStream = stream;
@@ -256,6 +484,7 @@ class WPCamera {
     }
 
     this.video.pause();
+    this.stopHandposeDetection();
 
     if (this.videoStream) {
       if (this.videoStream.getTracks) {
@@ -390,7 +619,8 @@ class WPRightMenu {
       '  <div class="wp-menu-item" data-key="shape" data-value="oval">Oval</div>' +
       '  <div class="wp-menu-item" data-key="shape" data-value="rectangle">Rectangle</div>' +
       '  <div class="wp-menu-item" data-key="shape" data-value="square">Square</div>' +
-      '  <div class="wp-menu-item" data-key="shape" data-value="circle">Circle</div>' +
+      '  <div class="wp-menu-item-separator" data-key="shape" data-value="circle">Circle</div>' +
+      '  <div class="wp-menu-item" data-key="showHandpose" data-value="toggle">Toggle Handpose</div>' +
       "</div>";
 
     return menuContainer;
@@ -435,6 +665,7 @@ function getSettings(): Promise<Settings> {
         trackTabs: true,
         trackPresentation: true,
         width: 240,
+        showHandpose: true,
       },
       (items) => {
         resolve(items as Settings);
@@ -457,7 +688,16 @@ async function startFingerTip(): Promise<void> {
       frame.menu.hide();
 
       frame.menu.onMenuClick = (key: string, newValue: string) => {
-        if (key !== "visibility") {
+        if (key === "showHandpose" && newValue === "toggle") {
+          settings.showHandpose = !settings.showHandpose;
+          frame.camera!.updateSettings(settings);
+
+          try {
+            chrome.storage.sync.set(settings);
+          } catch (e) {
+            console.log("sync set fail: ", e);
+          }
+        } else if (key !== "visibility") {
           (settings as any)[key] = newValue;
           frame.camera!.updateSettings(settings);
 
