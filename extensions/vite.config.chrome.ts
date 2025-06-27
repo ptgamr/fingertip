@@ -23,6 +23,8 @@ export default defineConfig({
         background: "src/background.ts",
         options: "src/options.ts",
         "options-page": "options.html",
+        offscreen: "src/offscreen.ts",
+        "offscreen-page": "offscreen.html",
         // content-scripts are built separately because we don't want rollup to bundle them
         // Rollup enforces code-splitting when there are multiple entry-points
         // but content-scripts can't use import statements, everything need to be bundled into a single file

@@ -1,32 +1,42 @@
 {
   "manifest_version": 3,
   "name": "FingerTip",
+  "description": "Control your browser with your fingertip via webcam",
   "version": "1.0.0",
-  "description": "Control website using your hand.",
+  "action": {
+    "default_icon": "res/bar-icon.png",
+    "default_title": "Click to start webcam"
+  },
   "icons": {
     "128": "res/128.png"
   },
-  "action": {
-    "default_icon": "res/bar-icon.png"
-  },
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "storage",
-    "notifications",
-    "http://*/*",
-    "https://*/*"
-  ],
-  "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "notifications",
+    "offscreen"
+  ],
+  "host_permissions": ["https://*/*"],
   "content_scripts": [
     {
       "matches": ["https://*/*"],
       "js": ["content-scripts/content-script.js"],
       "css": ["res/wp-style.css"]
     }
-  ]
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["res/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }

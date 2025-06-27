@@ -1,9 +1,13 @@
 /// <reference types="chrome"/>
 
+// This is the content script for the FingerTip extension.
+// It is responsible for creating the UI and handling communication with the background script.
+
 // FingerTip Content Script with Handpose Tracking
 // Migrated and combined from chrome/src/{camera.js, start.js, terminate.js, rightMenu.js}
 
 import { WPCamera, Settings } from "./wp-camera";
+import { FingerTracker } from "./finger-tracker";
 
 class WPRightMenu {
   element: HTMLElement;
@@ -131,28 +135,37 @@ class WPRightMenu {
 }
 
 // Global state
-let wpFrame: (HTMLElement & { camera?: WPCamera; menu?: WPRightMenu }) | null =
-  null;
+let wpFrame:
+  | (HTMLElement & {
+      camera?: WPCamera;
+      menu?: WPRightMenu;
+      fingerTracker?: FingerTracker;
+    })
+  | null = null;
 
 function enchantHtml(): HTMLElement & {
   camera?: WPCamera;
   menu?: WPRightMenu;
+  fingerTracker?: FingerTracker;
 } {
   let frame = document.getElementById("wp_frame") as HTMLElement & {
     camera?: WPCamera;
     menu?: WPRightMenu;
+    fingerTracker?: FingerTracker;
   };
 
   if (!frame) {
     frame = document.createElement("div") as HTMLElement & {
       camera?: WPCamera;
       menu?: WPRightMenu;
+      fingerTracker?: FingerTracker;
     };
     frame.id = "wp_frame";
     frame.className = "wp-main-frame";
     document.body.appendChild(frame);
 
     frame.menu = new WPRightMenu(frame);
+    frame.fingerTracker = new FingerTracker();
   }
 
   return frame;
@@ -213,10 +226,14 @@ async function startFingerTip(): Promise<void> {
 function terminateFingerTip(): void {
   const frame = document.getElementById("wp_frame") as HTMLElement & {
     camera?: WPCamera;
+    fingerTracker?: FingerTracker;
   };
 
   if (frame && frame.camera) {
     frame.camera.destroy();
+  }
+  if (frame && frame.fingerTracker) {
+    frame.fingerTracker.destroy();
   }
 
   wpFrame = null;
@@ -239,6 +256,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } catch (error) {
       console.error("Failed to terminate:", error);
       sendResponse({ status: "error", error: (error as Error).message });
+    }
+  } else if (request.command === "hand-landmarks") {
+    if (wpFrame && wpFrame.fingerTracker) {
+      // The landmarks are normalized to video size. We need to convert them to page coordinates.
+      // Assuming video was 1280x720, and we want to map to viewport.
+      const landmarks = request.landmarks[0]; // Using first hand
+      const indexFingerTip = landmarks[8]; // landmark for index finger tip
+
+      const videoWidth = 1280;
+      const videoHeight = 720;
+
+      // The coordinates from mediapipe are normalized [0.0, 1.0].
+      // We need to scale them to the viewport size.
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const pageX = (1 - indexFingerTip.x) * viewportWidth;
+      const pageY = indexFingerTip.y * viewportHeight;
+
+      wpFrame.fingerTracker.updatePosition(pageX, pageY);
     }
   }
 });
