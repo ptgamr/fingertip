@@ -34,7 +34,11 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["mediapipe/*"],
+      "resources": [
+        "models/hand_landmarker.task",
+        "mediapipe/wasm/vision_wasm_internal.wasm",
+        "mediapipe/wasm/vision_wasm_thread.wasm"
+      ],
       "matches": ["https://*/*"]
     }
   ]

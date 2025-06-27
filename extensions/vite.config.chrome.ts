@@ -13,6 +13,10 @@ export default defineConfig({
           src: "./node_modules/@mediapipe/tasks-vision/wasm/*",
           dest: "mediapipe/wasm/",
         },
+        {
+          src: "./public/hand_landmarker.task",
+          dest: "models/",
+        },
       ],
     }),
   ],

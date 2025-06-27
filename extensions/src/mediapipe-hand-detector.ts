@@ -22,13 +22,13 @@ export class MediaPipeHandDetector implements HandDetector {
 
       // Initialize MediaPipe FilesetResolver with local WASM files
       const vision = await FilesetResolver.forVisionTasks(
-        `${extensionUrl}mediapipe/`
+        `${extensionUrl}mediapipe/wasm`
       );
 
       // Create HandLandmarker with local model file
       this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath: `${extensionUrl}mediapipe/hand_landmarker.task`,
+          modelAssetPath: `${extensionUrl}models/hand_landmarker.task`,
           delegate: "GPU",
         },
         runningMode: "VIDEO",
