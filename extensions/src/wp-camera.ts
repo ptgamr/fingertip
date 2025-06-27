@@ -35,6 +35,7 @@ export class WPCamera {
   handDetector: HandDetector | null = null;
   animationId: number | null = null;
   fingerTracker: FingerTracker | null = null;
+  handDetectorType: HandDetectorType = "offscreen";
 
   constructor(
     element: HTMLElement,
@@ -63,6 +64,7 @@ export class WPCamera {
     this.isRunning = false;
     this.isWaitingStream = false;
     this.fullscreenElementAttached = null;
+    this.handDetectorType = detectorType;
 
     this.container = document.createElement("div");
     this.container.style.position = "relative";
@@ -105,6 +107,11 @@ export class WPCamera {
     try {
       // Detect hands using the modular hand detector
       const predictions = await this.handDetector.detectHands(this.video);
+
+      // Debug logging
+      if (predictions.length > 0) {
+        console.log(`Detected ${predictions.length} hands`);
+      }
 
       this.drawHandKeypoints(predictions);
       this.trackIndexFinger(predictions);
@@ -170,7 +177,7 @@ export class WPCamera {
     return { x: pageX, y: pageY };
   }
 
-  async drawVideoToCanvas(): Promise<void> {
+  async drawVideoToCanvas(predictions?: HandDetectionResult[]): Promise<void> {
     if (!this.ctx) {
       return;
     }
@@ -183,29 +190,38 @@ export class WPCamera {
         });
 
         if (response.success && response.data) {
-          const img = new Image();
-          img.onload = () => {
-            // Clear the canvas
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              // Clear the canvas
+              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            // Apply mirroring if enabled
-            this.ctx.save();
-            if (this.settings.mirror) {
-              this.ctx.scale(-1, 1);
-              this.ctx.translate(-this.canvas.width, 0);
-            }
+              // Apply mirroring if enabled
+              this.ctx.save();
+              if (this.settings.mirror) {
+                this.ctx.scale(-1, 1);
+                this.ctx.translate(-this.canvas.width, 0);
+              }
 
-            // Draw the image frame to canvas
-            this.ctx.drawImage(
-              img,
-              0,
-              0,
-              this.canvas.width,
-              this.canvas.height
-            );
-            this.ctx.restore();
-          };
-          img.src = response.data;
+              // Draw the image frame to canvas
+              this.ctx.drawImage(
+                img,
+                0,
+                0,
+                this.canvas.width,
+                this.canvas.height
+              );
+              this.ctx.restore();
+
+              // Draw hand keypoints on top of the video frame if provided
+              if (predictions && predictions.length > 0) {
+                this.drawHandKeypoints(predictions);
+              }
+
+              resolve();
+            };
+            img.src = response.data;
+          });
         }
       } catch (error) {
         console.error("Failed to get video frame from offscreen:", error);
@@ -361,11 +377,25 @@ export class WPCamera {
     }
 
     const renderLoop = async () => {
-      // Always render video to canvas
-      await this.drawVideoToCanvas();
+      // For offscreen detector, combine video rendering and hand detection
+      if (this.handDetector instanceof OffscreenHandDetector) {
+        try {
+          // Get hand detection results first
+          const predictions = await this.handDetector.detectHands(this.video);
 
-      // Always detect hands when camera is running
-      await this.detectHands();
+          // Render video with hand keypoints overlaid
+          await this.drawVideoToCanvas(predictions);
+
+          // Track finger for cursor
+          this.trackIndexFinger(predictions);
+        } catch (error) {
+          console.error("Render loop error:", error);
+        }
+      } else {
+        // Original implementation for non-offscreen detectors
+        await this.drawVideoToCanvas();
+        await this.detectHands();
+      }
 
       this.animationId = requestAnimationFrame(renderLoop);
     };
@@ -568,9 +598,13 @@ export class WPCamera {
     this.video.srcObject = stream;
   }
 
-  startStream(): void {
+  async startStream(): Promise<void> {
     if (this.isRunning || this.isWaitingStream) {
       return;
+    }
+
+    if (!this.handDetector) {
+      await this.initializeHandDetector(this.handDetectorType);
     }
 
     // For offscreen detector, we don't need to request camera access here

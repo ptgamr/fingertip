@@ -52,8 +52,14 @@ class OffscreenHandDetector {
           break;
 
         case "get-hand-detection":
+          console.log("Offscreen: Received hand detection request");
           this.detectHands()
-            .then((results) => sendResponse({ success: true, data: results }))
+            .then((results) => {
+              console.log(
+                `Offscreen: Returning ${results.length} hand detection results`
+              );
+              sendResponse({ success: true, data: results });
+            })
             .catch((error) =>
               sendResponse({ success: false, error: error.message })
             );
@@ -125,12 +131,7 @@ class OffscreenHandDetector {
       await this.initialize();
 
       // Request camera access
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: settings.width || 640,
-          height: settings.height || 480,
-        },
-      });
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
 
       // Setup video element
       this.video.srcObject = this.stream;

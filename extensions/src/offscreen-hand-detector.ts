@@ -76,6 +76,7 @@ export class OffscreenHandDetector implements HandDetector {
       // Convert offscreen results to our interface format
       const offscreenResults: OffscreenHandDetectionResult[] =
         response.data || [];
+
       const handResults: HandDetectionResult[] = [];
 
       for (const result of offscreenResults) {
