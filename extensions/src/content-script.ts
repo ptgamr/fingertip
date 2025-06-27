@@ -183,7 +183,7 @@ async function startFingerTip(): Promise<void> {
     wpFrame = frame;
 
     if (!frame.camera) {
-      frame.camera = new WPCamera(frame, settings);
+      frame.camera = new WPCamera(frame, settings, "mediapipe");
     }
 
     if (frame.menu) {

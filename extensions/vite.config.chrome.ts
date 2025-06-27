@@ -10,8 +10,8 @@ export default defineConfig({
           dest: "",
         },
         {
-          src: "./public/**/*",
-          dest: "",
+          src: "./node_modules/@mediapipe/tasks-vision/wasm/*",
+          dest: "mediapipe/wasm/",
         },
       ],
     }),

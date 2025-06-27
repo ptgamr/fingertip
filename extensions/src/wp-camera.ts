@@ -1,9 +1,12 @@
 /// <reference types="chrome"/>
 
-import * as tf from "@tensorflow/tfjs";
-import "@tensorflow/tfjs-backend-webgl";
-import * as handpose from "@tensorflow-models/handpose";
 import { FingerTracker } from "./finger-tracker";
+import {
+  HandDetector,
+  HandDetectionResult,
+  HandLandmark,
+} from "./hand-detector-interface";
+import { HandDetectorFactory, HandDetectorType } from "./hand-detector-factory";
 
 export interface Settings {
   shape: string;
@@ -14,12 +17,7 @@ export interface Settings {
   trackPresentation: boolean;
 }
 
-export interface HandPose {
-  annotations: {
-    [key: string]: number[][];
-  };
-  landmarks: number[][];
-}
+// HandPose interface moved to hand-detector-interface.ts
 
 export class WPCamera {
   frame: HTMLElement;
@@ -33,12 +31,15 @@ export class WPCamera {
   fullscreenElementAttached: Element | null = null;
   container: HTMLDivElement;
   observer?: MutationObserver;
-  handposeModel: handpose.HandPose | null = null;
-  handposeLoaded: boolean = false;
+  handDetector: HandDetector | null = null;
   animationId: number | null = null;
   fingerTracker: FingerTracker | null = null;
 
-  constructor(element: HTMLElement, settings: Settings) {
+  constructor(
+    element: HTMLElement,
+    settings: Settings,
+    detectorType: HandDetectorType = "mediapipe"
+  ) {
     this.frame = element;
     this.settings = settings || {
       shape: "oval",
@@ -72,26 +73,27 @@ export class WPCamera {
 
     element.appendChild(this.container);
 
-    // Load handpose model
-    this.loadHandposeModel();
+    // Initialize hand detector
+    this.initializeHandDetector(detectorType);
   }
 
-  async loadHandposeModel(): Promise<void> {
+  async initializeHandDetector(detectorType: HandDetectorType): Promise<void> {
     try {
-      console.log("Loading handpose model...");
-      await tf.ready();
-      this.handposeModel = await handpose.load();
-      this.handposeLoaded = true;
-      console.log("Handpose model loaded successfully");
+      this.handDetector = HandDetectorFactory.create(detectorType);
+      await this.handDetector.initialize();
+      console.log(`Hand detector (${detectorType}) initialized successfully`);
     } catch (error) {
-      console.error("Failed to load handpose model:", error);
+      console.error(
+        `Failed to initialize hand detector (${detectorType}):`,
+        error
+      );
     }
   }
 
   async detectHands(): Promise<void> {
     if (
-      !this.handposeModel ||
-      !this.handposeLoaded ||
+      !this.handDetector ||
+      !this.handDetector.isLoaded ||
       !this.video ||
       this.video.readyState !== 4
     ) {
@@ -99,17 +101,17 @@ export class WPCamera {
     }
 
     try {
-      // Detect hands and draw keypoints on top of video
-      const predictions = await this.handposeModel.estimateHands(this.video);
+      // Detect hands using the modular hand detector
+      const predictions = await this.handDetector.detectHands(this.video);
 
-      this.drawHandKeypoints(predictions as HandPose[]);
-      this.trackIndexFinger(predictions as HandPose[]);
+      this.drawHandKeypoints(predictions);
+      this.trackIndexFinger(predictions);
     } catch (error) {
       console.error("Hand detection error:", error);
     }
   }
 
-  trackIndexFinger(predictions: HandPose[]): void {
+  trackIndexFinger(predictions: HandDetectionResult[]): void {
     if (predictions.length === 0) {
       this.fingerTracker?.hide();
       return;
@@ -117,22 +119,15 @@ export class WPCamera {
 
     // Get the first hand prediction
     const hand = predictions[0];
-    if (!hand.landmarks || hand.landmarks.length < 21) {
-      this.fingerTracker?.hide();
-      return;
-    }
-
-    // Index finger tip is landmark 8 in MediaPipe hand model
-    const indexFingerTip = hand.landmarks[8];
-    if (!indexFingerTip) {
+    if (!hand.indexFingerTip) {
       this.fingerTracker?.hide();
       return;
     }
 
     // Convert from video coordinates to page coordinates
     const pageCoords = this.videoToPageCoordinates(
-      indexFingerTip[0],
-      indexFingerTip[1]
+      hand.indexFingerTip.x,
+      hand.indexFingerTip.y
     );
     this.fingerTracker?.updatePosition(pageCoords.x, pageCoords.y);
   }
@@ -196,7 +191,7 @@ export class WPCamera {
     this.ctx.restore();
   }
 
-  drawHandKeypoints(predictions: HandPose[]): void {
+  drawHandKeypoints(predictions: HandDetectionResult[]): void {
     if (!this.ctx) {
       return;
     }
@@ -221,10 +216,9 @@ export class WPCamera {
         this.ctx.lineWidth = 2;
 
         // Scale landmarks to match canvas size
-        const scaledLandmarks = prediction.landmarks.map(([x, y]) => [
-          x * scaleX,
-          y * scaleY,
-        ]);
+        const scaledLandmarks = prediction.landmarks.map(
+          (landmark: HandLandmark) => [landmark.x * scaleX, landmark.y * scaleY]
+        );
 
         // Draw landmarks
         scaledLandmarks.forEach((landmark, index) => {
@@ -581,5 +575,11 @@ export class WPCamera {
 
   destroy(): void {
     this.stopStream();
+
+    // Clean up hand detector
+    if (this.handDetector) {
+      this.handDetector.dispose();
+      this.handDetector = null;
+    }
   }
 }
