@@ -7,6 +7,7 @@ import {
   HandLandmark,
 } from "./hand-detector-interface";
 import { HandDetectorFactory, HandDetectorType } from "./hand-detector-factory";
+import { OffscreenHandDetector } from "./offscreen-hand-detector";
 
 export interface Settings {
   shape: string;
@@ -38,7 +39,7 @@ export class WPCamera {
   constructor(
     element: HTMLElement,
     settings: Settings,
-    detectorType: HandDetectorType = "mediapipe"
+    detectorType: HandDetectorType = "offscreen"
   ) {
     this.frame = element;
     this.settings = settings || {
@@ -50,9 +51,22 @@ export class WPCamera {
       trackPresentation: true,
     };
 
-    this.video = document.createElement("video");
-    this.canvas = document.createElement("canvas");
-    this.ctx = this.canvas.getContext("2d")!;
+    // For offscreen detector, we don't need actual video/canvas elements
+    // since camera access happens in the offscreen document
+    if (detectorType === "offscreen") {
+      this.video = document.createElement("video");
+      this.canvas = document.createElement("canvas");
+      this.ctx = this.canvas.getContext("2d")!;
+      this.video.style.display = "none";
+      this.canvas.style.display = "none";
+    } else {
+      this.video = document.createElement("video");
+      this.canvas = document.createElement("canvas");
+      this.ctx = this.canvas.getContext("2d")!;
+      this.video.style.display = "none";
+      this.canvas.style.display = "block";
+    }
+
     this.videoStream = null;
     this.isRunning = false;
     this.isWaitingStream = false;
@@ -61,15 +75,9 @@ export class WPCamera {
     this.container = document.createElement("div");
     this.container.style.position = "relative";
 
-    // Hide the video element since we'll render it to canvas
-    this.video.style.display = "none";
-
-    // Add video and canvas to container
+    // Add elements to container
     this.container.appendChild(this.video);
     this.container.appendChild(this.canvas);
-
-    // Canvas will show the video content + handpose overlay
-    this.canvas.style.display = "block";
 
     element.appendChild(this.container);
 
@@ -91,13 +99,15 @@ export class WPCamera {
   }
 
   async detectHands(): Promise<void> {
-    if (
-      !this.handDetector ||
-      !this.handDetector.isLoaded ||
-      !this.video ||
-      this.video.readyState !== 4
-    ) {
+    if (!this.handDetector || !this.handDetector.isLoaded) {
       return;
+    }
+
+    // For offscreen detector, skip video readiness check since camera is handled offscreen
+    if (!(this.handDetector instanceof OffscreenHandDetector)) {
+      if (!this.video || this.video.readyState !== 4) {
+        return;
+      }
     }
 
     try {
@@ -507,6 +517,30 @@ export class WPCamera {
 
   startStream(): void {
     if (this.isRunning || this.isWaitingStream) {
+      return;
+    }
+
+    // For offscreen detector, we don't need to request camera access here
+    // Camera access is handled in the offscreen document
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      this.isWaitingStream = true;
+
+      // Simulate video loading for offscreen detector
+      setTimeout(() => {
+        this.isRunning = true;
+        this.isWaitingStream = false;
+
+        // Create finger tracker when video stream starts
+        if (!this.fingerTracker) {
+          this.fingerTracker = new FingerTracker();
+        }
+
+        this.watchPunch();
+
+        // Start detection loop for offscreen detector
+        this.startVideoRenderingLoop();
+      }, 100);
+
       return;
     }
 

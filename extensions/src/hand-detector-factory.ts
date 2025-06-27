@@ -1,8 +1,9 @@
 import { HandDetector } from "./hand-detector-interface";
 import { MediaPipeHandDetector } from "./mediapipe-hand-detector";
 import { TensorFlowHandDetector } from "./tensorflow-hand-detector";
+import { OffscreenHandDetector } from "./offscreen-hand-detector";
 
-export type HandDetectorType = "mediapipe" | "tensorflow";
+export type HandDetectorType = "mediapipe" | "tensorflow" | "offscreen";
 
 export class HandDetectorFactory {
   /**
@@ -16,6 +17,8 @@ export class HandDetectorFactory {
         return new MediaPipeHandDetector();
       case "tensorflow":
         return new TensorFlowHandDetector();
+      case "offscreen":
+        return new OffscreenHandDetector();
       default:
         throw new Error(`Unknown hand detector type: ${type}`);
     }
