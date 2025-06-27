@@ -25,7 +25,10 @@
   "content_scripts": [
     {
       "matches": ["https://*/*"],
-      "js": ["content-scripts/content-script.js"],
+      "js": [
+        "mediapipe/wasm/vision_wasm_nosimd_internal.js",
+        "content-scripts/content-script.js"
+      ],
       "css": ["res/wp-style.css"]
     }
   ],
