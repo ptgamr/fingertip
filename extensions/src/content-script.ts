@@ -3,7 +3,6 @@
 // FingerTip Content Script with Handpose Tracking
 // Migrated and combined from chrome/src/{camera.js, start.js, terminate.js, rightMenu.js}
 
-import { FingerTracker } from "./finger-tracker";
 import { WPCamera, Settings } from "./wp-camera";
 
 class WPRightMenu {
