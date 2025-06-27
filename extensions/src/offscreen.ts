@@ -59,6 +59,16 @@ class OffscreenHandDetector {
             );
           return true; // Will respond asynchronously
 
+        case "get-video-frame":
+          this.getVideoFrame()
+            .then((frameData) =>
+              sendResponse({ success: true, data: frameData })
+            )
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+          return true; // Will respond asynchronously
+
         default:
           sendResponse({ success: false, error: "Unknown command" });
       }
@@ -169,6 +179,27 @@ class OffscreenHandDetector {
 
     this.video.srcObject = null;
     console.log("Camera stopped in offscreen document");
+  }
+
+  async getVideoFrame(): Promise<string | null> {
+    if (!this.isRunning || this.video.readyState !== 4) {
+      return null;
+    }
+
+    try {
+      // Set canvas size to match video
+      this.canvas.width = this.video.videoWidth;
+      this.canvas.height = this.video.videoHeight;
+
+      // Draw current video frame to canvas
+      this.ctx.drawImage(this.video, 0, 0);
+
+      // Convert canvas to base64 data URL
+      return this.canvas.toDataURL("image/jpeg", 0.8);
+    } catch (error) {
+      console.error("Failed to capture video frame:", error);
+      return null;
+    }
   }
 
   async detectHands(): Promise<OffscreenHandDetectionResult[]> {

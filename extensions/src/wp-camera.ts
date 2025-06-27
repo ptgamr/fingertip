@@ -51,21 +51,13 @@ export class WPCamera {
       trackPresentation: true,
     };
 
-    // For offscreen detector, we don't need actual video/canvas elements
-    // since camera access happens in the offscreen document
-    if (detectorType === "offscreen") {
-      this.video = document.createElement("video");
-      this.canvas = document.createElement("canvas");
-      this.ctx = this.canvas.getContext("2d")!;
-      this.video.style.display = "none";
-      this.canvas.style.display = "none";
-    } else {
-      this.video = document.createElement("video");
-      this.canvas = document.createElement("canvas");
-      this.ctx = this.canvas.getContext("2d")!;
-      this.video.style.display = "none";
-      this.canvas.style.display = "block";
-    }
+    this.video = document.createElement("video");
+    this.canvas = document.createElement("canvas");
+    this.ctx = this.canvas.getContext("2d")!;
+
+    // For offscreen detector, video element is hidden but canvas is visible to show feed
+    this.video.style.display = "none";
+    this.canvas.style.display = "block";
 
     this.videoStream = null;
     this.isRunning = false;
@@ -146,9 +138,17 @@ export class WPCamera {
     videoX: number,
     videoY: number
   ): { x: number; y: number } {
-    // Get video dimensions
-    const videoWidth = this.video.videoWidth;
-    const videoHeight = this.video.videoHeight;
+    // For offscreen detector, assume standard camera resolution (640x480)
+    // since we don't have direct access to video element
+    let videoWidth, videoHeight;
+
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      videoWidth = 640; // Default width used in offscreen
+      videoHeight = 480; // Default height used in offscreen
+    } else {
+      videoWidth = this.video.videoWidth;
+      videoHeight = this.video.videoHeight;
+    }
 
     // Get viewport dimensions
     const viewportWidth = window.innerWidth;
@@ -170,8 +170,51 @@ export class WPCamera {
     return { x: pageX, y: pageY };
   }
 
-  drawVideoToCanvas(): void {
-    if (!this.ctx || !this.video || this.video.readyState !== 4) {
+  async drawVideoToCanvas(): Promise<void> {
+    if (!this.ctx) {
+      return;
+    }
+
+    // For offscreen detector, get video frame from offscreen document
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          command: "get-video-frame",
+        });
+
+        if (response.success && response.data) {
+          const img = new Image();
+          img.onload = () => {
+            // Clear the canvas
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Apply mirroring if enabled
+            this.ctx.save();
+            if (this.settings.mirror) {
+              this.ctx.scale(-1, 1);
+              this.ctx.translate(-this.canvas.width, 0);
+            }
+
+            // Draw the image frame to canvas
+            this.ctx.drawImage(
+              img,
+              0,
+              0,
+              this.canvas.width,
+              this.canvas.height
+            );
+            this.ctx.restore();
+          };
+          img.src = response.data;
+        }
+      } catch (error) {
+        console.error("Failed to get video frame from offscreen:", error);
+      }
+      return;
+    }
+
+    // Original implementation for non-offscreen detectors
+    if (!this.video || this.video.readyState !== 4) {
       return;
     }
 
@@ -207,8 +250,18 @@ export class WPCamera {
     }
 
     // Calculate scale factors to map video coordinates to canvas coordinates
-    const scaleX = this.canvas.width / this.video.videoWidth;
-    const scaleY = this.canvas.height / this.video.videoHeight;
+    let videoWidth, videoHeight;
+
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      videoWidth = 640; // Default width used in offscreen
+      videoHeight = 480; // Default height used in offscreen
+    } else {
+      videoWidth = this.video.videoWidth;
+      videoHeight = this.video.videoHeight;
+    }
+
+    const scaleX = this.canvas.width / videoWidth;
+    const scaleY = this.canvas.height / videoHeight;
 
     // Don't clear canvas - video is already drawn
     // Apply mirroring if enabled (matching the video mirroring)
@@ -309,7 +362,7 @@ export class WPCamera {
 
     const renderLoop = async () => {
       // Always render video to canvas
-      this.drawVideoToCanvas();
+      await this.drawVideoToCanvas();
 
       // Always detect hands when camera is running
       await this.detectHands();

@@ -214,7 +214,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sender.tab &&
     (message.command === "start-camera" ||
       message.command === "stop-camera" ||
-      message.command === "get-hand-detection")
+      message.command === "get-hand-detection" ||
+      message.command === "get-video-frame")
   ) {
     // Forward message to offscreen document
     chrome.runtime
