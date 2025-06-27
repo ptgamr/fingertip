@@ -10,3 +10,8 @@
   - offscreen page will request the camera and perform handpose detection
   - Have to refactor the Camera logic, to constantly request FrameData from offscreen page, to draw in canvas so the camera is visible to user
   - TODO: we should just have the Offscreen approach, as it seems more reliable.
+
+### Hand gesture tracking appears tricky
+
+- It really hard to implement a "Flick" gesture to scroll, as when you flick, your finger will move up and then down, quite quickly.
+- We need some smoothing algo. for the laser pointer, otherwise it feel frantic.
