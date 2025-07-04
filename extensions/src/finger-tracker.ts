@@ -30,6 +30,11 @@ export class FingerTracker {
   private pinchDistanceHistory: number[] = [];
   private lastScrollTime = 0;
   private readonly SCROLL_COOLDOWN = 100; // Cooldown between scrolls in ms
+  // Debounce counters for stable pinch state transitions
+  private pinchConfirmCount = 0;
+  private pinchReleaseCount = 0;
+  private smoothedPinchDistance: number | null = null;
+  private readonly PINCH_EMA_ALPHA = 0.6; // Exponential moving average alpha (0..1)
 
   constructor() {
     this.dot = this.createDot();
@@ -100,14 +105,15 @@ export class FingerTracker {
       Math.pow(indexTip.y - thumbTip.y, 2)
     ) / Math.max(videoWidth, videoHeight);
 
-    // Add to distance history for smoothing
-    this.pinchDistanceHistory.push(pinchDistance);
-    if (this.pinchDistanceHistory.length > this.PINCH_SMOOTHING_FRAMES) {
-      this.pinchDistanceHistory.shift();
+    // Update exponential moving average for pinch-distance smoothing
+    if (this.smoothedPinchDistance === null) {
+      this.smoothedPinchDistance = pinchDistance;
+    } else {
+      this.smoothedPinchDistance = this.PINCH_EMA_ALPHA * pinchDistance +
+        (1 - this.PINCH_EMA_ALPHA) * this.smoothedPinchDistance;
     }
 
-    // Calculate smoothed pinch distance (average of recent frames)
-    const smoothedPinchDistance = this.pinchDistanceHistory.reduce((sum, dist) => sum + dist, 0) / this.pinchDistanceHistory.length;
+    const smoothedPinchDistance = this.smoothedPinchDistance;
 
     // Use hysteresis for stable pinch detection
     let isCurrentlyPinching = this.isPinching;
@@ -117,6 +123,23 @@ export class FingerTracker {
     } else {
       // Currently pinching - use higher threshold to exit pinch mode (prevents flickering)
       isCurrentlyPinching = smoothedPinchDistance < this.PINCH_EXIT_THRESHOLD;
+    }
+
+    // Debounce: require two consecutive frames to change pinch state
+    if (isCurrentlyPinching && !this.isPinching) {
+      this.pinchConfirmCount++;
+      if (this.pinchConfirmCount < 2) {
+        isCurrentlyPinching = false;
+      }
+    } else if (!isCurrentlyPinching && this.isPinching) {
+      this.pinchReleaseCount++;
+      if (this.pinchReleaseCount < 2) {
+        isCurrentlyPinching = true;
+      }
+    } else {
+      // Reset counters when state is stable
+      this.pinchConfirmCount = 0;
+      this.pinchReleaseCount = 0;
     }
 
     // Convert index finger position to screen coordinates
@@ -151,6 +174,13 @@ export class FingerTracker {
 
     // Detect pinch scroll gestures
     this.detectPinchScroll();
+
+    // Clear histories when pinch ends to prevent stale data causing flicker
+    if (!isCurrentlyPinching && this.isPinching) {
+      this.pinchHistory = [];
+      this.pinchDistanceHistory = [];
+      this.smoothedPinchDistance = null;
+    }
 
     // Update visual feedback based on pinching state
     if (isCurrentlyPinching && !this.isPinching) {
@@ -284,6 +314,9 @@ export class FingerTracker {
     this.pinchHistory = [];
     this.pinchDistanceHistory = [];
     this.isPinching = false;
+    this.pinchConfirmCount = 0;
+    this.pinchReleaseCount = 0;
+    this.smoothedPinchDistance = null;
   }
 
   destroy(): void {
