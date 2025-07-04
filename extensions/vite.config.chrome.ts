@@ -10,8 +10,16 @@ export default defineConfig({
           dest: "",
         },
         {
-          src: "./public/**/*",
+          src: "./offscreen.html",
           dest: "",
+        },
+        {
+          src: "./node_modules/@mediapipe/tasks-vision/wasm/*",
+          dest: "mediapipe/wasm/",
+        },
+        {
+          src: "./public/hand_landmarker.task",
+          dest: "models/",
         },
       ],
     }),
@@ -22,6 +30,7 @@ export default defineConfig({
       input: {
         background: "src/background.ts",
         options: "src/options.ts",
+        offscreen: "src/offscreen.ts",
         "options-page": "options.html",
         // content-scripts are built separately because we don't want rollup to bundle them
         // Rollup enforces code-splitting when there are multiple entry-points

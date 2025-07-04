@@ -14,6 +14,8 @@
     "activeTab",
     "storage",
     "notifications",
+    "offscreen",
+    "camera",
     "http://*/*",
     "https://*/*"
   ],
@@ -25,8 +27,26 @@
   "content_scripts": [
     {
       "matches": ["https://*/*"],
-      "js": ["content-scripts/content-script.js"],
+      "js": [
+        "mediapipe/wasm/vision_wasm_nosimd_internal.js",
+        "content-scripts/content-script.js"
+      ],
       "css": ["res/wp-style.css"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "models/hand_landmarker.task",
+        "mediapipe/wasm/vision_wasm_internal.js",
+        "mediapipe/wasm/vision_wasm_internal.wasm",
+        "mediapipe/wasm/vision_wasm_nosimd_internal.js",
+        "mediapipe/wasm/vision_wasm_nosimd_internal.wasm"
+      ],
+      "matches": ["https://*/*"]
     }
   ]
 }

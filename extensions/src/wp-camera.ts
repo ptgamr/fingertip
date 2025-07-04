@@ -1,9 +1,13 @@
 /// <reference types="chrome"/>
 
-import * as tf from "@tensorflow/tfjs";
-import "@tensorflow/tfjs-backend-webgl";
-import * as handpose from "@tensorflow-models/handpose";
 import { FingerTracker } from "./finger-tracker";
+import {
+  HandDetector,
+  HandDetectionResult,
+  HandLandmark,
+} from "./hand-detector-interface";
+import { HandDetectorFactory, HandDetectorType } from "./hand-detector-factory";
+import { OffscreenHandDetector } from "./offscreen-hand-detector";
 
 export interface Settings {
   shape: string;
@@ -14,12 +18,7 @@ export interface Settings {
   trackPresentation: boolean;
 }
 
-export interface HandPose {
-  annotations: {
-    [key: string]: number[][];
-  };
-  landmarks: number[][];
-}
+// HandPose interface moved to hand-detector-interface.ts
 
 export class WPCamera {
   frame: HTMLElement;
@@ -33,12 +32,16 @@ export class WPCamera {
   fullscreenElementAttached: Element | null = null;
   container: HTMLDivElement;
   observer?: MutationObserver;
-  handposeModel: handpose.HandPose | null = null;
-  handposeLoaded: boolean = false;
+  handDetector: HandDetector | null = null;
   animationId: number | null = null;
   fingerTracker: FingerTracker | null = null;
+  handDetectorType: HandDetectorType = "offscreen";
 
-  constructor(element: HTMLElement, settings: Settings) {
+  constructor(
+    element: HTMLElement,
+    settings: Settings,
+    detectorType: HandDetectorType = "offscreen"
+  ) {
     this.frame = element;
     this.settings = settings || {
       shape: "oval",
@@ -52,64 +55,72 @@ export class WPCamera {
     this.video = document.createElement("video");
     this.canvas = document.createElement("canvas");
     this.ctx = this.canvas.getContext("2d")!;
+
+    // For offscreen detector, video element is hidden but canvas is visible to show feed
+    this.video.style.display = "none";
+    this.canvas.style.display = "block";
+
     this.videoStream = null;
     this.isRunning = false;
     this.isWaitingStream = false;
     this.fullscreenElementAttached = null;
+    this.handDetectorType = detectorType;
 
     this.container = document.createElement("div");
     this.container.style.position = "relative";
 
-    // Hide the video element since we'll render it to canvas
-    this.video.style.display = "none";
-
-    // Add video and canvas to container
+    // Add elements to container
     this.container.appendChild(this.video);
     this.container.appendChild(this.canvas);
 
-    // Canvas will show the video content + handpose overlay
-    this.canvas.style.display = "block";
-
     element.appendChild(this.container);
 
-    // Load handpose model
-    this.loadHandposeModel();
+    // Initialize hand detector
+    this.initializeHandDetector(detectorType);
   }
 
-  async loadHandposeModel(): Promise<void> {
+  async initializeHandDetector(detectorType: HandDetectorType): Promise<void> {
     try {
-      console.log("Loading handpose model...");
-      await tf.ready();
-      this.handposeModel = await handpose.load();
-      this.handposeLoaded = true;
-      console.log("Handpose model loaded successfully");
+      this.handDetector = HandDetectorFactory.create(detectorType);
+      await this.handDetector.initialize();
+      console.log(`Hand detector (${detectorType}) initialized successfully`);
     } catch (error) {
-      console.error("Failed to load handpose model:", error);
+      console.error(
+        `Failed to initialize hand detector (${detectorType}):`,
+        error
+      );
     }
   }
 
   async detectHands(): Promise<void> {
-    if (
-      !this.handposeModel ||
-      !this.handposeLoaded ||
-      !this.video ||
-      this.video.readyState !== 4
-    ) {
+    if (!this.handDetector || !this.handDetector.isLoaded) {
       return;
     }
 
-    try {
-      // Detect hands and draw keypoints on top of video
-      const predictions = await this.handposeModel.estimateHands(this.video);
+    // For offscreen detector, skip video readiness check since camera is handled offscreen
+    if (!(this.handDetector instanceof OffscreenHandDetector)) {
+      if (!this.video || this.video.readyState !== 4) {
+        return;
+      }
+    }
 
-      this.drawHandKeypoints(predictions as HandPose[]);
-      this.trackIndexFinger(predictions as HandPose[]);
+    try {
+      // Detect hands using the modular hand detector
+      const predictions = await this.handDetector.detectHands(this.video);
+
+      // Debug logging
+      if (predictions.length > 0) {
+        console.log(`Detected ${predictions.length} hands`);
+      }
+
+      this.drawHandKeypoints(predictions);
+      this.trackIndexFinger(predictions);
     } catch (error) {
       console.error("Hand detection error:", error);
     }
   }
 
-  trackIndexFinger(predictions: HandPose[]): void {
+  trackIndexFinger(predictions: HandDetectionResult[]): void {
     if (predictions.length === 0) {
       this.fingerTracker?.hide();
       return;
@@ -117,22 +128,15 @@ export class WPCamera {
 
     // Get the first hand prediction
     const hand = predictions[0];
-    if (!hand.landmarks || hand.landmarks.length < 21) {
-      this.fingerTracker?.hide();
-      return;
-    }
-
-    // Index finger tip is landmark 8 in MediaPipe hand model
-    const indexFingerTip = hand.landmarks[8];
-    if (!indexFingerTip) {
+    if (!hand.indexFingerTip) {
       this.fingerTracker?.hide();
       return;
     }
 
     // Convert from video coordinates to page coordinates
     const pageCoords = this.videoToPageCoordinates(
-      indexFingerTip[0],
-      indexFingerTip[1]
+      hand.indexFingerTip.x,
+      hand.indexFingerTip.y
     );
     this.fingerTracker?.updatePosition(pageCoords.x, pageCoords.y);
   }
@@ -141,9 +145,17 @@ export class WPCamera {
     videoX: number,
     videoY: number
   ): { x: number; y: number } {
-    // Get video dimensions
-    const videoWidth = this.video.videoWidth;
-    const videoHeight = this.video.videoHeight;
+    // For offscreen detector, assume standard camera resolution (640x480)
+    // since we don't have direct access to video element
+    let videoWidth, videoHeight;
+
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      videoWidth = 640; // Default width used in offscreen
+      videoHeight = 480; // Default height used in offscreen
+    } else {
+      videoWidth = this.video.videoWidth;
+      videoHeight = this.video.videoHeight;
+    }
 
     // Get viewport dimensions
     const viewportWidth = window.innerWidth;
@@ -165,8 +177,60 @@ export class WPCamera {
     return { x: pageX, y: pageY };
   }
 
-  drawVideoToCanvas(): void {
-    if (!this.ctx || !this.video || this.video.readyState !== 4) {
+  async drawVideoToCanvas(predictions?: HandDetectionResult[]): Promise<void> {
+    if (!this.ctx) {
+      return;
+    }
+
+    // For offscreen detector, get video frame from offscreen document
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      try {
+        const response = await chrome.runtime.sendMessage({
+          command: "get-video-frame",
+        });
+
+        if (response.success && response.data) {
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              // Clear the canvas
+              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+              // Apply mirroring if enabled
+              this.ctx.save();
+              if (this.settings.mirror) {
+                this.ctx.scale(-1, 1);
+                this.ctx.translate(-this.canvas.width, 0);
+              }
+
+              // Draw the image frame to canvas
+              this.ctx.drawImage(
+                img,
+                0,
+                0,
+                this.canvas.width,
+                this.canvas.height
+              );
+              this.ctx.restore();
+
+              // Draw hand keypoints on top of the video frame if provided
+              if (predictions && predictions.length > 0) {
+                this.drawHandKeypoints(predictions);
+              }
+
+              resolve();
+            };
+            img.src = response.data;
+          });
+        }
+      } catch (error) {
+        console.error("Failed to get video frame from offscreen:", error);
+      }
+      return;
+    }
+
+    // Original implementation for non-offscreen detectors
+    if (!this.video || this.video.readyState !== 4) {
       return;
     }
 
@@ -196,14 +260,24 @@ export class WPCamera {
     this.ctx.restore();
   }
 
-  drawHandKeypoints(predictions: HandPose[]): void {
+  drawHandKeypoints(predictions: HandDetectionResult[]): void {
     if (!this.ctx) {
       return;
     }
 
     // Calculate scale factors to map video coordinates to canvas coordinates
-    const scaleX = this.canvas.width / this.video.videoWidth;
-    const scaleY = this.canvas.height / this.video.videoHeight;
+    let videoWidth, videoHeight;
+
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      videoWidth = 640; // Default width used in offscreen
+      videoHeight = 480; // Default height used in offscreen
+    } else {
+      videoWidth = this.video.videoWidth;
+      videoHeight = this.video.videoHeight;
+    }
+
+    const scaleX = this.canvas.width / videoWidth;
+    const scaleY = this.canvas.height / videoHeight;
 
     // Don't clear canvas - video is already drawn
     // Apply mirroring if enabled (matching the video mirroring)
@@ -221,10 +295,9 @@ export class WPCamera {
         this.ctx.lineWidth = 2;
 
         // Scale landmarks to match canvas size
-        const scaledLandmarks = prediction.landmarks.map(([x, y]) => [
-          x * scaleX,
-          y * scaleY,
-        ]);
+        const scaledLandmarks = prediction.landmarks.map(
+          (landmark: HandLandmark) => [landmark.x * scaleX, landmark.y * scaleY]
+        );
 
         // Draw landmarks
         scaledLandmarks.forEach((landmark, index) => {
@@ -304,11 +377,25 @@ export class WPCamera {
     }
 
     const renderLoop = async () => {
-      // Always render video to canvas
-      this.drawVideoToCanvas();
+      // For offscreen detector, combine video rendering and hand detection
+      if (this.handDetector instanceof OffscreenHandDetector) {
+        try {
+          // Get hand detection results first
+          const predictions = await this.handDetector.detectHands(this.video);
 
-      // Always detect hands when camera is running
-      await this.detectHands();
+          // Render video with hand keypoints overlaid
+          await this.drawVideoToCanvas(predictions);
+
+          // Track finger for cursor
+          this.trackIndexFinger(predictions);
+        } catch (error) {
+          console.error("Render loop error:", error);
+        }
+      } else {
+        // Original implementation for non-offscreen detectors
+        await this.drawVideoToCanvas();
+        await this.detectHands();
+      }
 
       this.animationId = requestAnimationFrame(renderLoop);
     };
@@ -511,8 +598,36 @@ export class WPCamera {
     this.video.srcObject = stream;
   }
 
-  startStream(): void {
+  async startStream(): Promise<void> {
     if (this.isRunning || this.isWaitingStream) {
+      return;
+    }
+
+    if (!this.handDetector) {
+      await this.initializeHandDetector(this.handDetectorType);
+    }
+
+    // For offscreen detector, we don't need to request camera access here
+    // Camera access is handled in the offscreen document
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      this.isWaitingStream = true;
+
+      // Simulate video loading for offscreen detector
+      setTimeout(() => {
+        this.isRunning = true;
+        this.isWaitingStream = false;
+
+        // Create finger tracker when video stream starts
+        if (!this.fingerTracker) {
+          this.fingerTracker = new FingerTracker();
+        }
+
+        this.watchPunch();
+
+        // Start detection loop for offscreen detector
+        this.startVideoRenderingLoop();
+      }, 100);
+
       return;
     }
 
@@ -581,5 +696,11 @@ export class WPCamera {
 
   destroy(): void {
     this.stopStream();
+
+    // Clean up hand detector
+    if (this.handDetector) {
+      this.handDetector.dispose();
+      this.handDetector = null;
+    }
   }
 }
