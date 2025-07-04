@@ -233,7 +233,8 @@ export class FingerTracker {
 
     // Check if movement is significant enough
     if (Math.abs(verticalMovement) >= this.PINCH_MOVEMENT_THRESHOLD) {
-      const scrollAmount = Math.sign(verticalMovement) * this.SCROLL_AMOUNT;
+      // Invert the scroll direction: hand up = scroll down, hand down = scroll up
+      const scrollAmount = -Math.sign(verticalMovement) * this.SCROLL_AMOUNT;
       this.scrollPage(scrollAmount);
       this.lastScrollTime = currentTime;
     }
