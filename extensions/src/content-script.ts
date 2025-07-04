@@ -3,7 +3,7 @@
 // FingerTip Content Script with Handpose Tracking
 // Migrated and combined from chrome/src/{camera.js, start.js, terminate.js, rightMenu.js}
 
-import { WPCamera, Settings } from "./wp-camera";
+import { FGTCamera, Settings } from "./fgt-camera";
 
 class WPRightMenu {
   element: HTMLElement;
@@ -131,21 +131,21 @@ class WPRightMenu {
 }
 
 // Global state
-let wpFrame: (HTMLElement & { camera?: WPCamera; menu?: WPRightMenu }) | null =
+let wpFrame: (HTMLElement & { camera?: FGTCamera; menu?: WPRightMenu }) | null =
   null;
 
 function enchantHtml(): HTMLElement & {
-  camera?: WPCamera;
+  camera?: FGTCamera;
   menu?: WPRightMenu;
 } {
   let frame = document.getElementById("wp_frame") as HTMLElement & {
-    camera?: WPCamera;
+    camera?: FGTCamera;
     menu?: WPRightMenu;
   };
 
   if (!frame) {
     frame = document.createElement("div") as HTMLElement & {
-      camera?: WPCamera;
+      camera?: FGTCamera;
       menu?: WPRightMenu;
     };
     frame.id = "wp_frame";
@@ -183,7 +183,7 @@ async function startFingerTip(): Promise<void> {
     wpFrame = frame;
 
     if (!frame.camera) {
-      frame.camera = new WPCamera(frame, settings, "offscreen");
+      frame.camera = new FGTCamera(frame, settings, "offscreen");
     }
 
     if (frame.menu) {
@@ -212,7 +212,7 @@ async function startFingerTip(): Promise<void> {
 
 function terminateFingerTip(): void {
   const frame = document.getElementById("wp_frame") as HTMLElement & {
-    camera?: WPCamera;
+    camera?: FGTCamera;
   };
 
   if (frame && frame.camera) {

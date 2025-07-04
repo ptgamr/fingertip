@@ -69,7 +69,7 @@ Display Video ← Relay Response ← Return Base64
 
 1. **offscreen.ts**: Added `getVideoFrame()` method
 2. **background.ts**: Added message forwarding for `get-video-frame`
-3. **wp-camera.ts**:
+3. **fgt-camera.ts**:
    - Made canvas always visible
    - Updated `drawVideoToCanvas()` for offscreen mode
    - Fixed coordinate calculations

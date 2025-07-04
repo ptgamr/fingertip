@@ -11,20 +11,17 @@ The FingerTip extension now uses Chrome's Offscreen API to handle camera access 
 ### Components
 
 1. **Offscreen Document** (`offscreen.html`, `offscreen.ts`)
-
    - Handles camera access via `getUserMedia()`
    - Runs MediaPipe hand detection models
    - Processes video frames and detects hand landmarks
    - Communicates results back to content script
 
 2. **Background Script** (`background.ts`)
-
    - Manages offscreen document lifecycle
    - Creates/closes offscreen documents as needed
    - Relays messages between content script and offscreen document
 
 3. **Content Script** (`content-script.ts`)
-
    - Uses `OffscreenHandDetector` instead of direct MediaPipe access
    - Communicates with offscreen document via Chrome messaging API
    - Displays visual feedback and handles user interaction
@@ -63,14 +60,14 @@ The implementation is automatically used when creating a `WPCamera` instance:
 
 ```typescript
 // Content script automatically uses offscreen detector
-const camera = new WPCamera(element, settings, "offscreen");
+const camera = new FGTCamera(element, settings, "offscreen");
 ```
 
 ## Files Modified
 
 - `manifest.json`: Added `offscreen` permission
 - `background.ts`: Added offscreen document management
-- `wp-camera.ts`: Updated to support offscreen mode
+- `fgt-camera.ts`: Updated to support offscreen mode
 - `content-script.ts`: Changed default detector to "offscreen"
 - `vite.config.chrome.ts`: Added offscreen.html and offscreen.ts to build
 
