@@ -32,6 +32,7 @@ export class OffscreenHandDetector implements HandDetector {
       // Start camera in offscreen document
       const response = await chrome.runtime.sendMessage({
         command: "start-camera",
+        target: "offscreen",
         settings: {
           width: 640,
           height: 480,
@@ -40,7 +41,7 @@ export class OffscreenHandDetector implements HandDetector {
 
       if (!response.success) {
         throw new Error(
-          response.error || "Failed to start camera in offscreen"
+          response.error || "Failed to start camera in offscreen",
         );
       }
 
@@ -63,12 +64,13 @@ export class OffscreenHandDetector implements HandDetector {
       // Request hand detection from offscreen document
       const response = await chrome.runtime.sendMessage({
         command: "get-hand-detection",
+        target: "offscreen",
       });
 
       if (!response.success) {
         console.error(
           "Failed to get hand detection from offscreen:",
-          response.error
+          response.error,
         );
         return [];
       }
@@ -108,6 +110,7 @@ export class OffscreenHandDetector implements HandDetector {
       // Stop camera in offscreen document
       chrome.runtime.sendMessage({
         command: "stop-camera",
+        target: "offscreen",
       });
 
       this.isLoaded = false;

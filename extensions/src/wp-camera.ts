@@ -40,7 +40,7 @@ export class WPCamera {
   constructor(
     element: HTMLElement,
     settings: Settings,
-    detectorType: HandDetectorType = "offscreen"
+    detectorType: HandDetectorType = "offscreen",
   ) {
     this.frame = element;
     this.settings = settings || {
@@ -87,7 +87,7 @@ export class WPCamera {
     } catch (error) {
       console.error(
         `Failed to initialize hand detector (${detectorType}):`,
-        error
+        error,
       );
     }
   }
@@ -136,14 +136,14 @@ export class WPCamera {
     // Convert from video coordinates to page coordinates
     const pageCoords = this.videoToPageCoordinates(
       hand.indexFingerTip.x,
-      hand.indexFingerTip.y
+      hand.indexFingerTip.y,
     );
     this.fingerTracker?.updatePosition(pageCoords.x, pageCoords.y);
   }
 
   videoToPageCoordinates(
     videoX: number,
-    videoY: number
+    videoY: number,
   ): { x: number; y: number } {
     // For offscreen detector, assume standard camera resolution (640x480)
     // since we don't have direct access to video element
@@ -187,6 +187,7 @@ export class WPCamera {
       try {
         const response = await chrome.runtime.sendMessage({
           command: "get-video-frame",
+          target: "offscreen",
         });
 
         if (response.success && response.data) {
@@ -209,7 +210,7 @@ export class WPCamera {
                 0,
                 0,
                 this.canvas.width,
-                this.canvas.height
+                this.canvas.height,
               );
               this.ctx.restore();
 
@@ -254,7 +255,7 @@ export class WPCamera {
       0,
       0,
       this.canvas.width,
-      this.canvas.height
+      this.canvas.height,
     );
 
     this.ctx.restore();
@@ -296,7 +297,10 @@ export class WPCamera {
 
         // Scale landmarks to match canvas size
         const scaledLandmarks = prediction.landmarks.map(
-          (landmark: HandLandmark) => [landmark.x * scaleX, landmark.y * scaleY]
+          (landmark: HandLandmark) => [
+            landmark.x * scaleX,
+            landmark.y * scaleY,
+          ],
         );
 
         // Draw landmarks
@@ -657,7 +661,7 @@ export class WPCamera {
             navigator,
             { video: true },
             (stream: MediaStream) => this.handleVideo(stream),
-            (error: any) => this.handleError(error)
+            (error: any) => this.handleError(error),
           );
         } catch (e) {
           this.handleError(e);

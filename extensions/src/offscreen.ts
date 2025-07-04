@@ -28,7 +28,7 @@ class OffscreenHandDetector {
   constructor() {
     this.video = document.getElementById("offscreen-video") as HTMLVideoElement;
     this.canvas = document.getElementById(
-      "offscreen-canvas"
+      "offscreen-canvas",
     ) as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
 
@@ -36,13 +36,16 @@ class OffscreenHandDetector {
   }
 
   private setupMessageListener(): void {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message.target !== "offscreen") {
+        return;
+      }
       switch (message.command) {
         case "start-camera":
           this.startCamera(message.settings)
             .then(() => sendResponse({ success: true }))
             .catch((error) =>
-              sendResponse({ success: false, error: error.message })
+              sendResponse({ success: false, error: error.message }),
             );
           return true; // Will respond asynchronously
 
@@ -56,22 +59,22 @@ class OffscreenHandDetector {
           this.detectHands()
             .then((results) => {
               console.log(
-                `Offscreen: Returning ${results.length} hand detection results`
+                `Offscreen: Returning ${results.length} hand detection results`,
               );
               sendResponse({ success: true, data: results });
             })
             .catch((error) =>
-              sendResponse({ success: false, error: error.message })
+              sendResponse({ success: false, error: error.message }),
             );
           return true; // Will respond asynchronously
 
         case "get-video-frame":
           this.getVideoFrame()
             .then((frameData) =>
-              sendResponse({ success: true, data: frameData })
+              sendResponse({ success: true, data: frameData }),
             )
             .catch((error) =>
-              sendResponse({ success: false, error: error.message })
+              sendResponse({ success: false, error: error.message }),
             );
           return true; // Will respond asynchronously
 
@@ -92,7 +95,7 @@ class OffscreenHandDetector {
 
       // Initialize MediaPipe FilesetResolver with local WASM files
       const vision = await FilesetResolver.forVisionTasks(
-        `${extensionUrl}mediapipe/wasm`
+        `${extensionUrl}mediapipe/wasm`,
       );
 
       // Create HandLandmarker with local model file
@@ -110,18 +113,18 @@ class OffscreenHandDetector {
 
       this.isLoaded = true;
       console.log(
-        "MediaPipe hand detection model loaded successfully in offscreen"
+        "MediaPipe hand detection model loaded successfully in offscreen",
       );
     } catch (error) {
       console.error(
         "Failed to load MediaPipe hand detection model in offscreen:",
-        error
+        error,
       );
       throw error;
     }
   }
 
-  async startCamera(settings: CameraSettings = {}): Promise<void> {
+  async startCamera(_settings: CameraSettings = {}): Promise<void> {
     if (this.isRunning) {
       throw new Error("Camera is already running");
     }
@@ -220,7 +223,7 @@ class OffscreenHandDetector {
       // Detect hands
       const results: HandLandmarkerResult = this.handLandmarker.detectForVideo(
         this.video,
-        timestamp
+        timestamp,
       );
 
       // Convert MediaPipe results to our interface format

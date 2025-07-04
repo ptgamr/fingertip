@@ -85,18 +85,16 @@ async function closeOffscreenDocument(): Promise<void> {
   }
 }
 
-async function startWp(tabId: number): Promise<void> {
+async function startFingerTip(tabId: number): Promise<void> {
   try {
     // Create offscreen document for camera access
     await createOffscreenDocument();
 
-    // Send message to content script to start the webcam preview
+    // Send message to content script to initialize the camera
+    // and start the hand tracking
     await chrome.tabs.sendMessage(tabId, { command: "start" });
 
-    await setState({
-      isRunning: true,
-      activeTabId: tabId,
-    });
+    await setState({ isRunning: true, activeTabId: tabId });
 
     await updateMode();
   } catch (error) {
@@ -137,7 +135,7 @@ chrome.action.onClicked.addListener(async (tab: chrome.tabs.Tab) => {
     }
   } else {
     if (isSecure) {
-      await startWp(tab.id);
+      await startFingerTip(tab.id);
     } else {
       // In Manifest V3, we can't use alert() in service workers
       // Instead, we could send a message to the content script to show an error
@@ -164,7 +162,7 @@ async function updateTab(tabId: number): Promise<void> {
 
     if (state.isRunning && state.activeTabId && isSecure) {
       await terminateWP(state.activeTabId);
-      await startWp(tabId);
+      await startFingerTip(tabId);
     }
   } catch (error) {
     console.error("Failed to update tab:", error);
@@ -210,13 +208,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 // Handle messages from content script to offscreen document
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Only handle messages from content scripts that should be forwarded to offscreen
-  if (
-    sender.tab &&
-    (message.command === "start-camera" ||
-      message.command === "stop-camera" ||
-      message.command === "get-hand-detection" ||
-      message.command === "get-video-frame")
-  ) {
+  if (sender.tab && message.target === "offscreen") {
+    if (message.command === "start-camera") {
+      console.log("[start-camera] Relay message to offscreen", message);
+    }
     // Forward message to offscreen document
     chrome.runtime
       .sendMessage(message)

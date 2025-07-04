@@ -15,3 +15,11 @@
 
 - It really hard to implement a "Flick" gesture to scroll, as when you flick, your finger will move up and then down, quite quickly.
 - We need some smoothing algo. for the laser pointer, otherwise it feel frantic.
+
+### Chrome Offscreen
+
+Is needed because content-script does have restriction loading content from external source, for example WASM.
+
+This details how to get access to camera from an Offscreen Document:
+https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture
+
