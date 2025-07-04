@@ -20,11 +20,14 @@ export class FingerTracker {
   private readonly FLICK_THRESHOLD = 30; // Minimum distance for flick detection
   private readonly FLICK_TIME_WINDOW = 300; // Time window in ms for flick detection
   private readonly SCROLL_AMOUNT = 100; // Pixels to scroll
-  private readonly PINCH_THRESHOLD = 0.05; // Distance threshold for pinching (normalized coordinates)
+  private readonly PINCH_ENTER_THRESHOLD = 0.04; // Lower threshold to enter pinch mode
+  private readonly PINCH_EXIT_THRESHOLD = 0.06; // Higher threshold to exit pinch mode (hysteresis)
   private readonly PINCH_MOVEMENT_THRESHOLD = 20; // Minimum movement for scroll
+  private readonly PINCH_SMOOTHING_FRAMES = 3; // Number of frames to smooth pinch detection
   private lastFlickTime = 0;
   private readonly FLICK_COOLDOWN = 500; // Cooldown between flicks in ms
   private isPinching: boolean = false;
+  private pinchDistanceHistory: number[] = [];
   private lastScrollTime = 0;
   private readonly SCROLL_COOLDOWN = 100; // Cooldown between scrolls in ms
 
@@ -97,6 +100,25 @@ export class FingerTracker {
       Math.pow(indexTip.y - thumbTip.y, 2)
     ) / Math.max(videoWidth, videoHeight);
 
+    // Add to distance history for smoothing
+    this.pinchDistanceHistory.push(pinchDistance);
+    if (this.pinchDistanceHistory.length > this.PINCH_SMOOTHING_FRAMES) {
+      this.pinchDistanceHistory.shift();
+    }
+
+    // Calculate smoothed pinch distance (average of recent frames)
+    const smoothedPinchDistance = this.pinchDistanceHistory.reduce((sum, dist) => sum + dist, 0) / this.pinchDistanceHistory.length;
+
+    // Use hysteresis for stable pinch detection
+    let isCurrentlyPinching = this.isPinching;
+    if (!this.isPinching) {
+      // Not currently pinching - use lower threshold to enter pinch mode
+      isCurrentlyPinching = smoothedPinchDistance < this.PINCH_ENTER_THRESHOLD;
+    } else {
+      // Currently pinching - use higher threshold to exit pinch mode (prevents flickering)
+      isCurrentlyPinching = smoothedPinchDistance < this.PINCH_EXIT_THRESHOLD;
+    }
+
     // Convert index finger position to screen coordinates
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
@@ -113,8 +135,6 @@ export class FingerTracker {
     // Map normalized coordinates to full viewport
     const indexScreenX = normalizedX * viewportWidth;
     const indexScreenY = normalizedY * viewportHeight;
-
-    const isCurrentlyPinching = pinchDistance < this.PINCH_THRESHOLD;
 
     // Add to pinch history
     this.pinchHistory.push({
@@ -262,6 +282,7 @@ export class FingerTracker {
     // Clear position history when hiding
     this.positionHistory = [];
     this.pinchHistory = [];
+    this.pinchDistanceHistory = [];
     this.isPinching = false;
   }
 
