@@ -20,6 +20,10 @@
 
 Is needed because content-script does have restriction loading content from external source, for example WASM.
 
-This details how to get access to camera from an Offscreen Document:
-https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture
+To grant Camera permission, you need to
 
+- Right click extension > View Web Permission
+- Choose Camera > Allow
+
+In the future we might create a button in `options.html` to grant permission (Simple) or following this approach: (needs `chrome.tabCapture` permssion, more Complex)
+https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture
