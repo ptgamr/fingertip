@@ -14,10 +14,7 @@
     "activeTab",
     "storage",
     "notifications",
-    "offscreen",
-    "camera",
-    "http://*/*",
-    "https://*/*"
+    "offscreen"
   ],
   "options_page": "options.html",
   "background": {
