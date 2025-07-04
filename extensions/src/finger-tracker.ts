@@ -4,16 +4,29 @@ interface Position {
   timestamp: number;
 }
 
+interface PinchData {
+  x: number;
+  y: number;
+  timestamp: number;
+  isPinching: boolean;
+}
+
 export class FingerTracker {
   private dot: HTMLElement;
   private isVisible: boolean = false;
   private positionHistory: Position[] = [];
+  private pinchHistory: PinchData[] = [];
   private readonly HISTORY_LIMIT = 10; // Keep last 10 positions
   private readonly FLICK_THRESHOLD = 30; // Minimum distance for flick detection
   private readonly FLICK_TIME_WINDOW = 300; // Time window in ms for flick detection
   private readonly SCROLL_AMOUNT = 100; // Pixels to scroll
+  private readonly PINCH_THRESHOLD = 0.05; // Distance threshold for pinching (normalized coordinates)
+  private readonly PINCH_MOVEMENT_THRESHOLD = 20; // Minimum movement for scroll
   private lastFlickTime = 0;
   private readonly FLICK_COOLDOWN = 500; // Cooldown between flicks in ms
+  private isPinching: boolean = false;
+  private lastScrollTime = 0;
+  private readonly SCROLL_COOLDOWN = 100; // Cooldown between scrolls in ms
 
   constructor() {
     this.dot = this.createDot();
@@ -52,12 +65,89 @@ export class FingerTracker {
       this.positionHistory.shift();
     }
 
-    // Check for flick gestures
-    this.detectFlickGesture();
+    // Note: Flick gesture detection is disabled as requested
+    // this.detectFlickGesture();
 
     // Update visual position
     this.dot.style.left = `${x}px`;
     this.dot.style.top = `${y}px`;
+
+    if (!this.isVisible) {
+      this.dot.style.display = "block";
+      this.isVisible = true;
+    }
+  }
+
+  updateWithLandmarks(landmarks: Array<{x: number, y: number, z?: number}>, videoWidth: number, videoHeight: number, isMirrored: boolean = false): void {
+    if (landmarks.length < 21) {
+      // Not enough landmarks for hand detection
+      this.hide();
+      return;
+    }
+
+    const currentTime = Date.now();
+
+    // Get index finger tip (landmark 8) and thumb tip (landmark 4)
+    const indexTip = landmarks[8];
+    const thumbTip = landmarks[4];
+
+    // Calculate pinch distance in video coordinate space (normalized)
+    const pinchDistance = Math.sqrt(
+      Math.pow(indexTip.x - thumbTip.x, 2) + 
+      Math.pow(indexTip.y - thumbTip.y, 2)
+    ) / Math.max(videoWidth, videoHeight);
+
+    // Convert index finger position to screen coordinates
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Convert video coordinates to normalized coordinates (0 to 1)
+    let normalizedX = indexTip.x / videoWidth;
+    let normalizedY = indexTip.y / videoHeight;
+
+    // Handle mirroring - if video is mirrored, flip the X coordinate
+    if (isMirrored) {
+      normalizedX = 1 - normalizedX;
+    }
+
+    // Map normalized coordinates to full viewport
+    const indexScreenX = normalizedX * viewportWidth;
+    const indexScreenY = normalizedY * viewportHeight;
+
+    const isCurrentlyPinching = pinchDistance < this.PINCH_THRESHOLD;
+
+    // Add to pinch history
+    this.pinchHistory.push({
+      x: indexScreenX,
+      y: indexScreenY,
+      timestamp: currentTime,
+      isPinching: isCurrentlyPinching,
+    });
+
+    // Limit history size
+    if (this.pinchHistory.length > this.HISTORY_LIMIT) {
+      this.pinchHistory.shift();
+    }
+
+    // Detect pinch scroll gestures
+    this.detectPinchScroll();
+
+    // Update visual feedback based on pinching state
+    if (isCurrentlyPinching && !this.isPinching) {
+      // Just started pinching
+      this.dot.style.backgroundColor = "#00ff00"; // Green when pinching
+      this.dot.style.boxShadow = "0 0 20px rgba(0, 255, 0, 0.9)";
+    } else if (!isCurrentlyPinching && this.isPinching) {
+      // Just stopped pinching
+      this.dot.style.backgroundColor = "#ff0000"; // Red when not pinching
+      this.dot.style.boxShadow = "0 0 15px rgba(255, 0, 0, 0.9)";
+    }
+
+    this.isPinching = isCurrentlyPinching;
+
+    // Update visual position
+    this.dot.style.left = `${indexScreenX}px`;
+    this.dot.style.top = `${indexScreenY}px`;
 
     if (!this.isVisible) {
       this.dot.style.display = "block";
@@ -115,6 +205,40 @@ export class FingerTracker {
     }
   }
 
+  private detectPinchScroll(): void {
+    if (this.pinchHistory.length < 3) {
+      return;
+    }
+
+    const currentTime = Date.now();
+
+    // Check cooldown
+    if (currentTime - this.lastScrollTime < this.SCROLL_COOLDOWN) {
+      return;
+    }
+
+    // Get recent pinching positions
+    const recentPinchData = this.pinchHistory.filter(
+      (data) => data.isPinching && currentTime - data.timestamp <= 300
+    );
+
+    if (recentPinchData.length < 3) {
+      return;
+    }
+
+    // Calculate vertical movement during pinching
+    const startPos = recentPinchData[0];
+    const endPos = recentPinchData[recentPinchData.length - 1];
+    const verticalMovement = endPos.y - startPos.y;
+
+    // Check if movement is significant enough
+    if (Math.abs(verticalMovement) >= this.PINCH_MOVEMENT_THRESHOLD) {
+      const scrollAmount = Math.sign(verticalMovement) * this.SCROLL_AMOUNT;
+      this.scrollPage(scrollAmount);
+      this.lastScrollTime = currentTime;
+    }
+  }
+
   private scrollPage(amount: number): void {
     // Smooth scroll
     window.scrollBy({
@@ -124,10 +248,10 @@ export class FingerTracker {
 
     // Visual feedback - briefly change dot color
     const originalColor = this.dot.style.backgroundColor;
-    this.dot.style.backgroundColor = amount < 0 ? "#00ff00" : "#0000ff"; // Green for up, blue for down
+    this.dot.style.backgroundColor = amount < 0 ? "#00ffff" : "#ff00ff"; // Cyan for up, magenta for down
 
     setTimeout(() => {
-      this.dot.style.backgroundColor = originalColor;
+      this.dot.style.backgroundColor = this.isPinching ? "#00ff00" : "#ff0000";
     }, 200);
   }
 
@@ -136,6 +260,8 @@ export class FingerTracker {
     this.isVisible = false;
     // Clear position history when hiding
     this.positionHistory = [];
+    this.pinchHistory = [];
+    this.isPinching = false;
   }
 
   destroy(): void {

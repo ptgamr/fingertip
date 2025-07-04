@@ -124,7 +124,7 @@ class OffscreenHandDetector {
     }
   }
 
-  async startCamera(_settings: CameraSettings = {}): Promise<void> {
+  async startCamera(settings: CameraSettings = {}): Promise<void> {
     if (this.isRunning) {
       throw new Error("Camera is already running");
     }
@@ -134,7 +134,10 @@ class OffscreenHandDetector {
       await this.initialize();
 
       // Request camera access
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: {
+        width: settings.width || 640,
+        height: settings.height || 480,
+      } });
 
       // Setup video element
       this.video.srcObject = this.stream;

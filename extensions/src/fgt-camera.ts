@@ -128,17 +128,28 @@ export class FGTCamera {
 
     // Get the first hand prediction
     const hand = predictions[0];
-    if (!hand.indexFingerTip) {
+    if (!hand.indexFingerTip || !hand.landmarks) {
       this.fingerTracker?.hide();
       return;
     }
 
-    // Convert from video coordinates to page coordinates
-    const pageCoords = this.videoToPageCoordinates(
-      hand.indexFingerTip.x,
-      hand.indexFingerTip.y
+    // Get video dimensions
+    let videoWidth, videoHeight;
+    if (this.handDetector instanceof OffscreenHandDetector) {
+      videoWidth = 640; // Default width used in offscreen
+      videoHeight = 480; // Default height used in offscreen
+    } else {
+      videoWidth = this.video.videoWidth;
+      videoHeight = this.video.videoHeight;
+    }
+
+    // Use the new updateWithLandmarks method for pinching detection and scrolling
+    this.fingerTracker?.updateWithLandmarks(
+      hand.landmarks,
+      videoWidth,
+      videoHeight,
+      this.settings.mirror
     );
-    this.fingerTracker?.updatePosition(pageCoords.x, pageCoords.y);
   }
 
   videoToPageCoordinates(
