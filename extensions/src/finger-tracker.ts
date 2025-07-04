@@ -35,6 +35,10 @@ export class FingerTracker {
   private pinchReleaseCount = 0;
   private smoothedPinchDistance: number | null = null;
   private readonly PINCH_EMA_ALPHA = 0.6; // Exponential moving average alpha (0..1)
+  // Momentum scrolling parameters
+  private readonly MOMENTUM_MULTIPLIER = 1000; // Multiplier to convert velocity (px/ms) to scroll distance
+  private readonly MAX_MOMENTUM_SCROLL = 3000; // Cap scroll distance
+  private readonly MIN_MOMENTUM_SCROLL = 100; // Ensure at least base amount
 
   constructor() {
     this.dot = this.createDot();
@@ -280,11 +284,21 @@ export class FingerTracker {
     const startPos = recentPinchData[0];
     const endPos = recentPinchData[recentPinchData.length - 1];
     const verticalMovement = endPos.y - startPos.y;
+    const timeElapsed = endPos.timestamp - startPos.timestamp;
 
     // Check if movement is significant enough
     if (Math.abs(verticalMovement) >= this.PINCH_MOVEMENT_THRESHOLD) {
+      // Calculate velocity (pixels per millisecond)
+      const velocity = Math.abs(verticalMovement) / Math.max(timeElapsed, 1);
+      
+      // Convert velocity to scroll distance with momentum
+      let momentumScroll = velocity * this.MOMENTUM_MULTIPLIER;
+      
+      // Clamp the scroll distance within bounds
+      momentumScroll = Math.min(this.MAX_MOMENTUM_SCROLL, Math.max(this.MIN_MOMENTUM_SCROLL, momentumScroll));
+
       // Invert the scroll direction: hand up = scroll down, hand down = scroll up
-      const scrollAmount = -Math.sign(verticalMovement) * this.SCROLL_AMOUNT;
+      const scrollAmount = -Math.sign(verticalMovement) * momentumScroll;
       this.scrollPage(scrollAmount);
       this.lastScrollTime = currentTime;
     }
