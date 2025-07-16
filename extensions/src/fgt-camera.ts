@@ -332,8 +332,21 @@ export class FGTCamera {
         this.ctx.lineWidth = 2;
 
         // Scale landmarks to match canvas size
+        // For offscreen detector, landmarks are normalized (0-1), so scale by canvas size
+        // For other detectors, landmarks are in video pixels, so scale by scale factors
         const scaledLandmarks = prediction.landmarks.map(
-          (landmark: HandLandmark) => [landmark.x * scaleX, landmark.y * scaleY]
+          (landmark: HandLandmark) => {
+            if (this.handDetector instanceof OffscreenHandDetector) {
+              // Normalized coordinates (0-1) -> canvas coordinates
+              return [
+                landmark.x * this.canvas.width,
+                landmark.y * this.canvas.height,
+              ];
+            } else {
+              // Video pixel coordinates -> canvas coordinates
+              return [landmark.x * scaleX, landmark.y * scaleY];
+            }
+          }
         );
 
         // Draw landmarks
