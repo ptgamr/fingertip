@@ -1,6 +1,6 @@
 /// <reference types="chrome"/>
 
-import { FingerTracker } from "./finger-tracker";
+import { FingerTracker2 } from "./finger-tracker-2";
 import {
   HandDetector,
   HandDetectionResult,
@@ -34,7 +34,7 @@ export class FGTCamera {
   observer?: MutationObserver;
   handDetector: HandDetector | null = null;
   animationId: number | null = null;
-  fingerTracker: FingerTracker | null = null;
+  fingerTracker: FingerTracker2 | null = null;
   handDetectorType: HandDetectorType = "offscreen";
 
   constructor(
@@ -597,7 +597,7 @@ export class FGTCamera {
 
       // Create finger tracker when video stream starts
       if (!this.fingerTracker) {
-        this.fingerTracker = new FingerTracker();
+        this.fingerTracker = new FingerTracker2();
       }
 
       this.watchPunch();
@@ -631,7 +631,7 @@ export class FGTCamera {
 
         // Create finger tracker when video stream starts
         if (!this.fingerTracker) {
-          this.fingerTracker = new FingerTracker();
+          this.fingerTracker = new FingerTracker2();
         }
 
         this.watchPunch();
