@@ -63,7 +63,14 @@ export class FingerTracker3 {
     videoHeight: number,
     isMirrored: boolean = false
   ): void {
-    if (!this.isInitialized) return;
+    if (!this.isInitialized) {
+      console.warn("[FingerTracker3] Not initialized, skipping update");
+      return;
+    }
+
+    console.log(
+      `[FingerTracker3] Processing ${multiHandLandmarks.length} hands`
+    );
 
     // Track which hands are detected
     const detectedHands = new Set<HandType>();
@@ -76,11 +83,17 @@ export class FingerTracker3 {
       const hand: HandType = handedness.label === "Left" ? "left" : "right";
       detectedHands.add(hand);
 
+      console.log(
+        `[FingerTracker3] Processing ${hand} hand (${handedness.label})`
+      );
+
       // Process hand for pinch detection
       this.pinchDetector.processHand(hand, landmarks, videoWidth, videoHeight);
 
       // Update visual position
       const indexTip = landmarks[8];
+      console.log(`[FingerTracker3] ${hand} index tip landmark:`, indexTip);
+
       const screenPos = this.landmarkToScreen(
         indexTip,
         videoWidth,
@@ -88,6 +101,8 @@ export class FingerTracker3 {
         isMirrored,
         hand
       );
+
+      console.log(`[FingerTracker3] ${hand} screen position:`, screenPos);
 
       this.visualFeedback.updatePosition(hand, screenPos);
     });
@@ -143,6 +158,15 @@ export class FingerTracker3 {
     isMirrored: boolean,
     hand: HandType
   ): Position {
+    console.log(`[FingerTracker3] landmarkToScreen input:`, {
+      landmark,
+      videoWidth,
+      videoHeight,
+      isMirrored,
+      hand,
+      windowSize: { width: window.innerWidth, height: window.innerHeight },
+    });
+
     // Normalize coordinates (MediaPipe provides 0-1 normalized coords)
     let normalizedX = landmark.x;
     let normalizedY = landmark.y;
@@ -155,6 +179,11 @@ export class FingerTracker3 {
     // Convert to screen coordinates
     const screenX = normalizedX * window.innerWidth;
     const screenY = normalizedY * window.innerHeight;
+
+    console.log(`[FingerTracker3] landmarkToScreen output:`, {
+      x: screenX,
+      y: screenY,
+    });
 
     return { x: screenX, y: screenY };
   }

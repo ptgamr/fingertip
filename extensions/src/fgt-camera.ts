@@ -121,8 +121,17 @@ export class FGTCamera {
   }
 
   trackIndexFinger(predictions: HandDetectionResult[]): void {
+    console.log(
+      `[FGTCamera] trackIndexFinger called with ${predictions.length} predictions`
+    );
+
     if (predictions.length === 0) {
       this.fingerTracker?.hide();
+      return;
+    }
+
+    if (!this.fingerTracker) {
+      console.error("[FGTCamera] FingerTracker not initialized!");
       return;
     }
 
@@ -136,15 +145,27 @@ export class FGTCamera {
       videoHeight = this.video.videoHeight;
     }
 
+    console.log(`[FGTCamera] Video dimensions: ${videoWidth}x${videoHeight}`);
+
     // Convert predictions to multi-hand format for FingerTracker3
     const multiHandLandmarks = predictions
       .map((pred) => pred.landmarks)
       .filter(Boolean);
-    const multiHandedness = predictions.map((pred, index) => ({
-      index,
-      score: pred.score || 1.0,
-      label: pred.handedness || "Right", // Default to right hand if not specified
-    }));
+    const multiHandedness = predictions.map((pred, index) => {
+      // Use handedness from detection result
+      const label = pred.handedness || "Right";
+      const score = pred.score || 1.0;
+
+      console.log(`[FGTCamera] Hand ${index}: ${label} (score: ${score})`);
+
+      return {
+        index,
+        score,
+        label,
+      };
+    });
+
+    console.log("[FGTCamera] Handedness data:", multiHandedness);
 
     // Update with multi-hand landmarks
     this.fingerTracker?.updateWithMultiHandLandmarks(
@@ -601,7 +622,12 @@ export class FGTCamera {
 
       // Create finger tracker when video stream starts
       if (!this.fingerTracker) {
-        this.fingerTracker = new FingerTracker3();
+        console.log("[FGTCamera] Creating FingerTracker3 instance");
+        this.fingerTracker = new FingerTracker3({
+          visual: {
+            showDebug: true, // Force debug mode for troubleshooting
+          },
+        });
       }
 
       this.watchPunch();
@@ -635,7 +661,14 @@ export class FGTCamera {
 
         // Create finger tracker when video stream starts
         if (!this.fingerTracker) {
-          this.fingerTracker = new FingerTracker3();
+          console.log(
+            "[FGTCamera] Creating FingerTracker3 instance (offscreen mode)"
+          );
+          this.fingerTracker = new FingerTracker3({
+            visual: {
+              showDebug: true, // Force debug mode for troubleshooting
+            },
+          });
         }
 
         this.watchPunch();

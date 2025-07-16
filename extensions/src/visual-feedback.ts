@@ -21,20 +21,23 @@ export class VisualFeedback {
     this.config = { ...defaultVisualConfig, ...config };
     this.dots = new Map();
 
+    console.log("[VisualFeedback] Initializing with config:", this.config);
+
     // Create dots for both hands
     this.createDot("left");
     this.createDot("right");
 
-    // Create debug element if enabled
-    if (this.config.showDebug) {
-      this.createDebugElement();
-    }
+    // Always create debug element for debugging
+    console.log("[VisualFeedback] Creating debug element");
+    this.createDebugElement();
   }
 
   /**
    * Create a dot element for a specific hand
    */
   private createDot(hand: HandType): void {
+    console.log(`[VisualFeedback] Creating dot for ${hand} hand`);
+
     const dot = document.createElement("div");
     dot.id = `fingertip-tracker-dot-${hand}`;
     dot.className = "fingertip-tracker-dot";
@@ -57,6 +60,13 @@ export class VisualFeedback {
 
     // Add to DOM
     document.body.appendChild(dot);
+
+    // Verify dot was added
+    const addedDot = document.getElementById(`fingertip-tracker-dot-${hand}`);
+    console.log(
+      `[VisualFeedback] Dot ${hand} added to DOM:`,
+      addedDot !== null
+    );
 
     // Store dot info
     this.dots.set(hand, {
@@ -99,10 +109,16 @@ export class VisualFeedback {
    */
   updatePosition(hand: HandType, position: Position): void {
     const dot = this.dots.get(hand);
-    if (!dot) return;
+    if (!dot) {
+      console.warn(`[VisualFeedback] No dot found for ${hand} hand`);
+      return;
+    }
+
+    console.log(`[VisualFeedback] Updating ${hand} position:`, position);
 
     // Show dot if hidden
     if (!dot.isVisible) {
+      console.log(`[VisualFeedback] Showing ${hand} dot`);
       dot.element.style.display = "block";
       dot.isVisible = true;
     }

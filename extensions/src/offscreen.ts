@@ -7,6 +7,8 @@ import {
 interface OffscreenHandDetectionResult {
   landmarks: Array<{ x: number; y: number; z: number }>;
   indexFingerTip: { x: number; y: number; z: number };
+  handedness?: string; // "Left" or "Right"
+  score?: number; // Confidence score
 }
 
 interface CameraSettings {
@@ -28,7 +30,7 @@ class OffscreenHandDetector {
   constructor() {
     this.video = document.getElementById("offscreen-video") as HTMLVideoElement;
     this.canvas = document.getElementById(
-      "offscreen-canvas",
+      "offscreen-canvas"
     ) as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
 
@@ -45,7 +47,7 @@ class OffscreenHandDetector {
           this.startCamera(message.settings)
             .then(() => sendResponse({ success: true }))
             .catch((error) =>
-              sendResponse({ success: false, error: error.message }),
+              sendResponse({ success: false, error: error.message })
             );
           return true; // Will respond asynchronously
 
@@ -59,22 +61,22 @@ class OffscreenHandDetector {
           this.detectHands()
             .then((results) => {
               console.log(
-                `Offscreen: Returning ${results.length} hand detection results`,
+                `Offscreen: Returning ${results.length} hand detection results`
               );
               sendResponse({ success: true, data: results });
             })
             .catch((error) =>
-              sendResponse({ success: false, error: error.message }),
+              sendResponse({ success: false, error: error.message })
             );
           return true; // Will respond asynchronously
 
         case "get-video-frame":
           this.getVideoFrame()
             .then((frameData) =>
-              sendResponse({ success: true, data: frameData }),
+              sendResponse({ success: true, data: frameData })
             )
             .catch((error) =>
-              sendResponse({ success: false, error: error.message }),
+              sendResponse({ success: false, error: error.message })
             );
           return true; // Will respond asynchronously
 
@@ -95,7 +97,7 @@ class OffscreenHandDetector {
 
       // Initialize MediaPipe FilesetResolver with local WASM files
       const vision = await FilesetResolver.forVisionTasks(
-        `${extensionUrl}mediapipe/wasm`,
+        `${extensionUrl}mediapipe/wasm`
       );
 
       // Create HandLandmarker with local model file
@@ -113,12 +115,12 @@ class OffscreenHandDetector {
 
       this.isLoaded = true;
       console.log(
-        "MediaPipe hand detection model loaded successfully in offscreen",
+        "MediaPipe hand detection model loaded successfully in offscreen"
       );
     } catch (error) {
       console.error(
         "Failed to load MediaPipe hand detection model in offscreen:",
-        error,
+        error
       );
       throw error;
     }
@@ -134,10 +136,12 @@ class OffscreenHandDetector {
       await this.initialize();
 
       // Request camera access
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: {
-        width: settings.width || 640,
-        height: settings.height || 480,
-      } });
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: settings.width || 640,
+          height: settings.height || 480,
+        },
+      });
 
       // Setup video element
       this.video.srcObject = this.stream;
@@ -226,8 +230,14 @@ class OffscreenHandDetector {
       // Detect hands
       const results: HandLandmarkerResult = this.handLandmarker.detectForVideo(
         this.video,
-        timestamp,
+        timestamp
       );
+
+      console.log("[Offscreen] MediaPipe detection results:", {
+        numHands: results.landmarks?.length || 0,
+        hasHandedness: !!results.handednesses,
+        handedness: results.handednesses,
+      });
 
       // Convert MediaPipe results to our interface format
       const handResults: OffscreenHandDetectionResult[] = [];
@@ -236,23 +246,38 @@ class OffscreenHandDetector {
         for (let i = 0; i < results.landmarks.length; i++) {
           const landmarks = results.landmarks[i];
 
-          // Convert normalized coordinates to pixel coordinates
-          const videoWidth = this.video.videoWidth;
-          const videoHeight = this.video.videoHeight;
-
-          const convertedLandmarks = landmarks.map((landmark) => ({
-            x: landmark.x * videoWidth,
-            y: landmark.y * videoHeight,
+          // IMPORTANT: Keep coordinates normalized (0-1) as expected by FingerTracker3
+          // Do NOT convert to pixel coordinates here
+          const normalizedLandmarks = landmarks.map((landmark) => ({
+            x: landmark.x,
+            y: landmark.y,
             z: landmark.z,
           }));
 
           // Index finger tip is landmark 8 in MediaPipe hand model
-          const indexFingerTip = convertedLandmarks[8];
+          const indexFingerTip = normalizedLandmarks[8];
 
           if (indexFingerTip) {
+            // Get handedness information if available
+            let handedness = "Right"; // Default
+            let score = 1.0;
+
+            if (results.handednesses && results.handednesses[i]) {
+              const hand = results.handednesses[i][0]; // Get first classification
+              handedness = hand.categoryName || "Right";
+              score = hand.score || 1.0;
+            }
+
+            console.log(
+              `[Offscreen] Hand ${i}: ${handedness} (score: ${score}), index tip:`,
+              indexFingerTip
+            );
+
             handResults.push({
-              landmarks: convertedLandmarks,
+              landmarks: normalizedLandmarks,
               indexFingerTip: indexFingerTip,
+              handedness: handedness,
+              score: score,
             });
           }
         }
