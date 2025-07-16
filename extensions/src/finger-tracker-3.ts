@@ -68,10 +68,6 @@ export class FingerTracker3 {
       return;
     }
 
-    console.log(
-      `[FingerTracker3] Processing ${multiHandLandmarks.length} hands`
-    );
-
     // Track which hands are detected
     const detectedHands = new Set<HandType>();
 
@@ -83,13 +79,8 @@ export class FingerTracker3 {
       const hand: HandType = handedness.label === "Left" ? "left" : "right";
       detectedHands.add(hand);
 
-      console.log(
-        `[FingerTracker3] Processing ${hand} hand (${handedness.label})`
-      );
-
       // Update visual position
       const indexTip = landmarks[8];
-      console.log(`[FingerTracker3] ${hand} index tip landmark:`, indexTip);
 
       const screenPos = this.landmarkToScreen(
         indexTip,
@@ -98,8 +89,6 @@ export class FingerTracker3 {
         isMirrored,
         hand
       );
-
-      console.log(`[FingerTracker3] ${hand} screen position:`, screenPos);
 
       // Process hand for pinch detection with screen position
       this.pinchDetector.processHand(
@@ -164,15 +153,6 @@ export class FingerTracker3 {
     isMirrored: boolean,
     hand: HandType
   ): Position {
-    console.log(`[FingerTracker3] landmarkToScreen input:`, {
-      landmark,
-      videoWidth,
-      videoHeight,
-      isMirrored,
-      hand,
-      windowSize: { width: window.innerWidth, height: window.innerHeight },
-    });
-
     // Normalize coordinates (MediaPipe provides 0-1 normalized coords)
     let normalizedX = landmark.x;
     let normalizedY = landmark.y;
@@ -180,21 +160,11 @@ export class FingerTracker3 {
     // Handle mirroring
     if (isMirrored) {
       normalizedX = 1 - normalizedX;
-      console.log(
-        `[FingerTracker3] Applied mirroring: ${landmark.x} -> ${normalizedX}`
-      );
     }
 
     // Convert to screen coordinates
     const screenX = normalizedX * window.innerWidth;
     const screenY = normalizedY * window.innerHeight;
-
-    console.log(`[FingerTracker3] landmarkToScreen transformation:`, {
-      input: { x: landmark.x, y: landmark.y },
-      normalized: { x: normalizedX, y: normalizedY },
-      screen: { x: screenX, y: screenY },
-      windowSize: { width: window.innerWidth, height: window.innerHeight },
-    });
 
     return { x: screenX, y: screenY };
   }

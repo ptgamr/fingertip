@@ -114,11 +114,8 @@ export class VisualFeedback {
       return;
     }
 
-    console.log(`[VisualFeedback] Updating ${hand} position:`, position);
-
     // Show dot if hidden
     if (!dot.isVisible) {
-      console.log(`[VisualFeedback] Showing ${hand} dot`);
       dot.element.style.display = "block";
       dot.isVisible = true;
     }

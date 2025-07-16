@@ -121,10 +121,6 @@ export class FGTCamera {
   }
 
   trackIndexFinger(predictions: HandDetectionResult[]): void {
-    console.log(
-      `[FGTCamera] trackIndexFinger called with ${predictions.length} predictions`
-    );
-
     if (predictions.length === 0) {
       this.fingerTracker?.hide();
       return;
@@ -145,8 +141,6 @@ export class FGTCamera {
       videoHeight = this.video.videoHeight;
     }
 
-    console.log(`[FGTCamera] Video dimensions: ${videoWidth}x${videoHeight}`);
-
     // Convert predictions to multi-hand format for FingerTracker3
     const multiHandLandmarks = predictions
       .map((pred) => pred.landmarks)
@@ -156,16 +150,12 @@ export class FGTCamera {
       const label = pred.handedness || "Right";
       const score = pred.score || 1.0;
 
-      console.log(`[FGTCamera] Hand ${index}: ${label} (score: ${score})`);
-
       return {
         index,
         score,
         label,
       };
     });
-
-    console.log("[FGTCamera] Handedness data:", multiHandedness);
 
     // Update with multi-hand landmarks
     this.fingerTracker?.updateWithMultiHandLandmarks(

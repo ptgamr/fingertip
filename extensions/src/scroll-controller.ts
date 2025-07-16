@@ -67,13 +67,13 @@ export class ScrollController {
 
   private logInfo(message: string, data?: any): void {
     if (this.logLevel >= LogLevel.INFO) {
-      console.log(`[ScrollController] ${message}`, data);
+      console.log(`[ScrollController] INFO ${message}`, data);
     }
   }
 
   private logDebug(message: string, data?: any): void {
     if (this.logLevel >= LogLevel.DEBUG) {
-      console.log(`[ScrollController] ${message}`, data);
+      console.log(`[ScrollController] DEBUG ${message}`, data);
     }
   }
 
