@@ -78,6 +78,22 @@ export class ScrollController {
       screenPos,
       element: element?.tagName,
       elementClass: element?.className,
+      elementId: element?.id,
+      elementScrollable: element
+        ? {
+            scrollHeight: element.scrollHeight,
+            clientHeight: element.clientHeight,
+            scrollWidth: element.scrollWidth,
+            clientWidth: element.clientWidth,
+            computedStyle: element
+              ? {
+                  overflow: getComputedStyle(element).overflow,
+                  overflowX: getComputedStyle(element).overflowX,
+                  overflowY: getComputedStyle(element).overflowY,
+                }
+              : null,
+          }
+        : null,
     });
 
     state.target = this.findScrollableParent(element);
@@ -86,6 +102,23 @@ export class ScrollController {
         state.target === window ? "window" : (state.target as Element)?.tagName,
       targetClass:
         state.target !== window ? (state.target as Element)?.className : "N/A",
+      targetId: state.target !== window ? (state.target as Element)?.id : "N/A",
+      targetScrollable:
+        state.target !== window
+          ? {
+              scrollHeight: (state.target as Element).scrollHeight,
+              clientHeight: (state.target as Element).clientHeight,
+              scrollWidth: (state.target as Element).scrollWidth,
+              clientWidth: (state.target as Element).clientWidth,
+            }
+          : {
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+              innerWidth: window.innerWidth,
+              innerHeight: window.innerHeight,
+              documentHeight: document.documentElement.scrollHeight,
+              documentWidth: document.documentElement.scrollWidth,
+            },
     });
 
     // Store original scroll position
@@ -147,42 +180,133 @@ export class ScrollController {
     const pixelXDiff = xDiff * viewportWidth;
     const pixelYDiff = yDiff * viewportHeight;
 
+    // REFERENCE COMPARISON: The reference implementation uses:
+    // x: this.tweenScroll[n].x - (hands.origPinch[n][0].x - hands.curPinch[n][0].x) * width * this.config.speed
+    // y: this.tweenScroll[n].y + (hands.origPinch[n][0].y - hands.curPinch[n][0].y) * height * this.config.speed
+    const referenceXDiff = -(event.origPinch.x - event.curPinch.x);
+    const referenceYDiff = event.origPinch.y - event.curPinch.y;
+    const referenceNewX =
+      state.tweenScroll.x +
+      referenceXDiff * viewportWidth * this.config.scrollSpeed;
+    const referenceNewY =
+      state.tweenScroll.y +
+      referenceYDiff * viewportHeight * this.config.scrollSpeed;
+
     console.log(`[ScrollController] Scroll calculations:`, {
-      xDiff,
-      yDiff,
-      viewportWidth,
-      viewportHeight,
-      pixelXDiff,
-      pixelYDiff,
+      rawPositions: {
+        origPinch: event.origPinch,
+        curPinch: event.curPinch,
+      },
+      deltas: {
+        xDiff,
+        yDiff,
+        referenceXDiff,
+        referenceYDiff,
+      },
+      viewport: {
+        width: viewportWidth,
+        height: viewportHeight,
+      },
+      pixelDeltas: {
+        pixelXDiff,
+        pixelYDiff,
+      },
       scrollSpeed: this.config.scrollSpeed,
       currentTweenScroll: { ...state.tweenScroll },
       newTweenScroll: {
         x: state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed,
         y: state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed,
       },
+      referenceNewScroll: {
+        x: referenceNewX,
+        y: referenceNewY,
+      },
+      comparison: {
+        xMatches:
+          Math.abs(
+            state.tweenScroll.x +
+              pixelXDiff * this.config.scrollSpeed -
+              referenceNewX
+          ) < 0.1,
+        yMatches:
+          Math.abs(
+            state.tweenScroll.y +
+              pixelYDiff * this.config.scrollSpeed -
+              referenceNewY
+          ) < 0.1,
+      },
+    });
+
+    // Calculate target scroll position
+    const targetX = state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed;
+    const targetY = state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed;
+
+    console.log(`[ScrollController] GSAP tween setup:`, {
+      gsapAvailable: typeof gsap !== "undefined",
+      gsapVersion: gsap?.version,
+      tweenConfig: {
+        from: { ...state.tweenScroll },
+        to: { x: targetX, y: targetY },
+        duration: this.config.tweenDuration,
+        ease: this.config.tweenEase,
+        overwrite: true,
+        immediateRender: true,
+      },
     });
 
     // Apply continuous scrolling with GSAP
-    gsap.to(state.tweenScroll, {
-      x: state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed,
-      y: state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed,
+    const tween = gsap.to(state.tweenScroll, {
+      x: targetX,
+      y: targetY,
       duration: this.config.tweenDuration,
       ease: this.config.tweenEase,
       overwrite: true,
       immediateRender: true,
+      onStart: () => {
+        console.log(`[ScrollController] GSAP tween started:`, {
+          hand: event.hand,
+          startPosition: { ...state.tweenScroll },
+          targetPosition: { x: targetX, y: targetY },
+        });
+      },
       onUpdate: () => {
         // Apply scroll to target
         if (state.target) {
-          console.log(`[ScrollController] Applying scroll:`, {
+          console.log(`[ScrollController] GSAP onUpdate - Applying scroll:`, {
             target:
               state.target === window
                 ? "window"
                 : (state.target as Element)?.tagName,
-            scrollPosition: { ...state.tweenScroll },
+            currentTweenPosition: { ...state.tweenScroll },
+            actualScrollBefore: {
+              x: this.getTargetScrollLeft(state.target),
+              y: this.getTargetScrollTop(state.target),
+            },
           });
+
           this.applyScroll(state.target, state.tweenScroll);
+
+          console.log(`[ScrollController] GSAP onUpdate - Scroll applied:`, {
+            actualScrollAfter: {
+              x: this.getTargetScrollLeft(state.target),
+              y: this.getTargetScrollTop(state.target),
+            },
+          });
         }
       },
+      onComplete: () => {
+        console.log(`[ScrollController] GSAP tween completed:`, {
+          hand: event.hand,
+          finalPosition: { ...state.tweenScroll },
+        });
+      },
+    });
+
+    console.log(`[ScrollController] GSAP tween created:`, {
+      tweenExists: !!tween,
+      tweenDuration: tween?.duration(),
+      tweenProgress: tween?.progress(),
+      tweenIsActive: tween?.isActive(),
     });
 
     // Update hand state
@@ -281,10 +405,44 @@ export class ScrollController {
    * Apply scroll to target
    */
   private applyScroll(target: Element | Window, position: Position): void {
-    if (target === window) {
-      window.scrollTo(position.x, position.y);
-    } else {
-      (target as Element).scrollTo(position.x, position.y);
+    const beforeScroll = {
+      x: this.getTargetScrollLeft(target),
+      y: this.getTargetScrollTop(target),
+    };
+
+    console.log(`[ScrollController] applyScroll called:`, {
+      target: target === window ? "window" : (target as Element)?.tagName,
+      requestedPosition: position,
+      currentScrollPosition: beforeScroll,
+      scrollToMethod:
+        target === window ? "window.scrollTo" : "element.scrollTo",
+    });
+
+    try {
+      if (target === window) {
+        window.scrollTo(position.x, position.y);
+      } else {
+        (target as Element).scrollTo(position.x, position.y);
+      }
+
+      const afterScroll = {
+        x: this.getTargetScrollLeft(target),
+        y: this.getTargetScrollTop(target),
+      };
+
+      console.log(`[ScrollController] applyScroll result:`, {
+        beforeScroll,
+        afterScroll,
+        actualChange: {
+          x: afterScroll.x - beforeScroll.x,
+          y: afterScroll.y - beforeScroll.y,
+        },
+        success:
+          Math.abs(afterScroll.x - position.x) < 1 &&
+          Math.abs(afterScroll.y - position.y) < 1,
+      });
+    } catch (error) {
+      console.error(`[ScrollController] applyScroll failed:`, error);
     }
   }
 

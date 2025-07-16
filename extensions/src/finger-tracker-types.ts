@@ -119,8 +119,10 @@ export interface PinchEvent {
 
 // Default configurations
 export const defaultPinchConfig: PinchConfig = {
-  pinchEnterThreshold: 0.045, // Match reference implementation
-  pinchExitThreshold: 0.055, // Slightly higher for hysteresis
+  // Based on debug logs showing typical distances of 0.057-0.107
+  // Adjusted to be more realistic for normalized coordinates
+  pinchEnterThreshold: 0.08, // Higher threshold to enter pinch state
+  pinchExitThreshold: 0.1, // Even higher for hysteresis to prevent flicker
   pinchMovementThreshold: 15,
   framesToConfirmPinch: 3,
   framesToReleasePinch: 5,

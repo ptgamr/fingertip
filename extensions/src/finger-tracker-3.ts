@@ -206,21 +206,17 @@ export class FingerTracker3 {
     const leftState = this.pinchDetector.getHandState("left");
     const rightState = this.pinchDetector.getHandState("right");
 
-    const leftScreenPos = this.landmarkToScreen(
-      leftState.curPinch,
-      1,
-      1,
-      false,
-      "left"
-    );
+    // Use current pinch positions directly since they're already in normalized coordinates
+    // and convert them to screen coordinates properly
+    const leftScreenPos = {
+      x: leftState.curPinch.x * window.innerWidth,
+      y: leftState.curPinch.y * window.innerHeight,
+    };
 
-    const rightScreenPos = this.landmarkToScreen(
-      rightState.curPinch,
-      1,
-      1,
-      false,
-      "right"
-    );
+    const rightScreenPos = {
+      x: rightState.curPinch.x * window.innerWidth,
+      y: rightState.curPinch.y * window.innerHeight,
+    };
 
     this.visualFeedback.updateDebugInfo({
       left: {
