@@ -15,16 +15,29 @@ interface ScrollState {
   isScrolling: boolean;
 }
 
+enum LogLevel {
+  ERROR = 0,
+  INFO = 1,
+  DEBUG = 2,
+}
+
 export class ScrollController {
   private config: ScrollConfig;
   private pinchDetector: PinchDetector;
   private scrollStates: Map<HandType, ScrollState>;
   private onScrollingCallback?: (hand: HandType, isScrolling: boolean) => void;
+  private logLevel: LogLevel = LogLevel.INFO; // Default to INFO level
+  private updateCounter: number = 0; // Counter for onUpdate logging
 
-  constructor(pinchDetector: PinchDetector, config?: Partial<ScrollConfig>) {
+  constructor(
+    pinchDetector: PinchDetector,
+    config?: Partial<ScrollConfig>,
+    logLevel: "error" | "info" | "debug" = "info"
+  ) {
     this.config = { ...defaultScrollConfig, ...config };
     this.pinchDetector = pinchDetector;
     this.scrollStates = new Map();
+    this.setLogLevel(logLevel);
 
     // Initialize scroll states for both hands
     this.scrollStates.set("left", this.createInitialScrollState());
@@ -44,6 +57,61 @@ export class ScrollController {
   }
 
   /**
+   * Helper methods for controlled logging
+   */
+  private logError(message: string, data?: any): void {
+    if (this.logLevel >= LogLevel.ERROR) {
+      console.error(`[ScrollController] ${message}`, data);
+    }
+  }
+
+  private logInfo(message: string, data?: any): void {
+    if (this.logLevel >= LogLevel.INFO) {
+      console.log(`[ScrollController] ${message}`, data);
+    }
+  }
+
+  private logDebug(message: string, data?: any): void {
+    if (this.logLevel >= LogLevel.DEBUG) {
+      console.log(`[ScrollController] ${message}`, data);
+    }
+  }
+
+  /**
+   * Set logging level
+   */
+  setLogLevel(level: "error" | "info" | "debug"): void {
+    switch (level) {
+      case "error":
+        this.logLevel = LogLevel.ERROR;
+        break;
+      case "info":
+        this.logLevel = LogLevel.INFO;
+        break;
+      case "debug":
+        this.logLevel = LogLevel.DEBUG;
+        break;
+    }
+    this.logInfo(`Log level set to: ${level}`);
+  }
+
+  /**
+   * Get current logging level
+   */
+  getLogLevel(): "error" | "info" | "debug" {
+    switch (this.logLevel) {
+      case LogLevel.ERROR:
+        return "error";
+      case LogLevel.INFO:
+        return "info";
+      case LogLevel.DEBUG:
+        return "debug";
+      default:
+        return "info";
+    }
+  }
+
+  /**
    * Setup event listeners for pinch events
    */
   private setupEventListeners(): void {
@@ -59,12 +127,7 @@ export class ScrollController {
    * Handle pinch start event
    */
   private handlePinchStart(event: PinchEvent): void {
-    console.log(`[ScrollController] Pinch start event received:`, {
-      hand: event.hand,
-      position: event.position,
-      origPinch: event.origPinch,
-      curPinch: event.curPinch,
-    });
+    this.logInfo(`Pinch start event received for ${event.hand} hand`);
 
     const state = this.scrollStates.get(event.hand)!;
     const handState = this.pinchDetector.getHandState(event.hand);
@@ -74,52 +137,19 @@ export class ScrollController {
 
     // Find scrollable target at position
     const element = document.elementFromPoint(screenPos.x, screenPos.y);
-    console.log(`[ScrollController] Element at point:`, {
+    this.logDebug(`Element at point:`, {
       screenPos,
       element: element?.tagName,
       elementClass: element?.className,
       elementId: element?.id,
-      elementScrollable: element
-        ? {
-            scrollHeight: element.scrollHeight,
-            clientHeight: element.clientHeight,
-            scrollWidth: element.scrollWidth,
-            clientWidth: element.clientWidth,
-            computedStyle: element
-              ? {
-                  overflow: getComputedStyle(element).overflow,
-                  overflowX: getComputedStyle(element).overflowX,
-                  overflowY: getComputedStyle(element).overflowY,
-                }
-              : null,
-          }
-        : null,
     });
 
     state.target = this.findScrollableParent(element);
-    console.log(`[ScrollController] Found scroll target:`, {
-      target:
-        state.target === window ? "window" : (state.target as Element)?.tagName,
-      targetClass:
-        state.target !== window ? (state.target as Element)?.className : "N/A",
-      targetId: state.target !== window ? (state.target as Element)?.id : "N/A",
-      targetScrollable:
-        state.target !== window
-          ? {
-              scrollHeight: (state.target as Element).scrollHeight,
-              clientHeight: (state.target as Element).clientHeight,
-              scrollWidth: (state.target as Element).scrollWidth,
-              clientWidth: (state.target as Element).clientWidth,
-            }
-          : {
-              scrollX: window.scrollX,
-              scrollY: window.scrollY,
-              innerWidth: window.innerWidth,
-              innerHeight: window.innerHeight,
-              documentHeight: document.documentElement.scrollHeight,
-              documentWidth: document.documentElement.scrollWidth,
-            },
-    });
+    this.logInfo(
+      `Found scroll target: ${
+        state.target === window ? "window" : (state.target as Element)?.tagName
+      }`
+    );
 
     // Store original scroll position
     state.origScrollPos = {
@@ -131,7 +161,7 @@ export class ScrollController {
     state.tweenScroll.x = state.origScrollPos.x;
     state.tweenScroll.y = state.origScrollPos.y;
 
-    console.log(`[ScrollController] Initial scroll positions:`, {
+    this.logDebug(`Initial scroll positions:`, {
       origScrollPos: state.origScrollPos,
       tweenScroll: state.tweenScroll,
     });
@@ -152,18 +182,13 @@ export class ScrollController {
    * Handle pinch held event (continuous scrolling)
    */
   private handlePinchHeld(event: PinchEvent): void {
-    console.log(`[ScrollController] Pinch held event received:`, {
-      hand: event.hand,
-      position: event.position,
-      origPinch: event.origPinch,
-      curPinch: event.curPinch,
-    });
+    this.logDebug(`Pinch held event received for ${event.hand} hand`);
 
     const state = this.scrollStates.get(event.hand)!;
     const handState = this.pinchDetector.getHandState(event.hand);
 
     if (!state.target) {
-      console.log(`[ScrollController] No scroll target, skipping scroll`);
+      this.logDebug(`No scroll target, skipping scroll`);
       return;
     }
 
@@ -173,85 +198,19 @@ export class ScrollController {
     const yDiff = event.origPinch.y - event.curPinch.y;
 
     // Convert normalized delta to pixel delta
-    // Assuming normalized coordinates are 0-1, multiply by viewport size
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
     const pixelXDiff = xDiff * viewportWidth;
     const pixelYDiff = yDiff * viewportHeight;
 
-    // REFERENCE COMPARISON: The reference implementation uses:
-    // x: this.tweenScroll[n].x - (hands.origPinch[n][0].x - hands.curPinch[n][0].x) * width * this.config.speed
-    // y: this.tweenScroll[n].y + (hands.origPinch[n][0].y - hands.curPinch[n][0].y) * height * this.config.speed
-    const referenceXDiff = -(event.origPinch.x - event.curPinch.x);
-    const referenceYDiff = event.origPinch.y - event.curPinch.y;
-    const referenceNewX =
-      state.tweenScroll.x +
-      referenceXDiff * viewportWidth * this.config.scrollSpeed;
-    const referenceNewY =
-      state.tweenScroll.y +
-      referenceYDiff * viewportHeight * this.config.scrollSpeed;
-
-    console.log(`[ScrollController] Scroll calculations:`, {
-      rawPositions: {
-        origPinch: event.origPinch,
-        curPinch: event.curPinch,
-      },
-      deltas: {
-        xDiff,
-        yDiff,
-        referenceXDiff,
-        referenceYDiff,
-      },
-      viewport: {
-        width: viewportWidth,
-        height: viewportHeight,
-      },
-      pixelDeltas: {
-        pixelXDiff,
-        pixelYDiff,
-      },
-      scrollSpeed: this.config.scrollSpeed,
-      currentTweenScroll: { ...state.tweenScroll },
-      newTweenScroll: {
-        x: state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed,
-        y: state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed,
-      },
-      referenceNewScroll: {
-        x: referenceNewX,
-        y: referenceNewY,
-      },
-      comparison: {
-        xMatches:
-          Math.abs(
-            state.tweenScroll.x +
-              pixelXDiff * this.config.scrollSpeed -
-              referenceNewX
-          ) < 0.1,
-        yMatches:
-          Math.abs(
-            state.tweenScroll.y +
-              pixelYDiff * this.config.scrollSpeed -
-              referenceNewY
-          ) < 0.1,
-      },
-    });
-
     // Calculate target scroll position
     const targetX = state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed;
     const targetY = state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed;
 
-    console.log(`[ScrollController] GSAP tween setup:`, {
-      gsapAvailable: typeof gsap !== "undefined",
-      gsapVersion: gsap?.version,
-      tweenConfig: {
-        from: { ...state.tweenScroll },
-        to: { x: targetX, y: targetY },
-        duration: this.config.tweenDuration,
-        ease: this.config.tweenEase,
-        overwrite: true,
-        immediateRender: true,
-      },
+    this.logDebug(`Scroll delta:`, {
+      pixelDelta: { x: pixelXDiff, y: pixelYDiff },
+      targetPosition: { x: targetX, y: targetY },
     });
 
     // Apply continuous scrolling with GSAP
@@ -263,50 +222,23 @@ export class ScrollController {
       overwrite: true,
       immediateRender: true,
       onStart: () => {
-        console.log(`[ScrollController] GSAP tween started:`, {
-          hand: event.hand,
-          startPosition: { ...state.tweenScroll },
-          targetPosition: { x: targetX, y: targetY },
-        });
+        this.logDebug(`GSAP tween started for ${event.hand} hand`);
       },
       onUpdate: () => {
-        // Apply scroll to target
+        // Apply scroll to target - only log every 10th update to reduce spam
         if (state.target) {
-          console.log(`[ScrollController] GSAP onUpdate - Applying scroll:`, {
-            target:
-              state.target === window
-                ? "window"
-                : (state.target as Element)?.tagName,
-            currentTweenPosition: { ...state.tweenScroll },
-            actualScrollBefore: {
-              x: this.getTargetScrollLeft(state.target),
-              y: this.getTargetScrollTop(state.target),
-            },
-          });
-
+          this.updateCounter++;
+          if (this.updateCounter % 10 === 0) {
+            this.logDebug(
+              `GSAP onUpdate - applying scroll (update #${this.updateCounter})`
+            );
+          }
           this.applyScroll(state.target, state.tweenScroll);
-
-          console.log(`[ScrollController] GSAP onUpdate - Scroll applied:`, {
-            actualScrollAfter: {
-              x: this.getTargetScrollLeft(state.target),
-              y: this.getTargetScrollTop(state.target),
-            },
-          });
         }
       },
       onComplete: () => {
-        console.log(`[ScrollController] GSAP tween completed:`, {
-          hand: event.hand,
-          finalPosition: { ...state.tweenScroll },
-        });
+        this.logInfo(`GSAP tween completed for ${event.hand} hand`);
       },
-    });
-
-    console.log(`[ScrollController] GSAP tween created:`, {
-      tweenExists: !!tween,
-      tweenDuration: tween?.duration(),
-      tweenProgress: tween?.progress(),
-      tweenIsActive: tween?.isActive(),
     });
 
     // Update hand state
@@ -317,6 +249,8 @@ export class ScrollController {
    * Handle pinch released event
    */
   private handlePinchReleased(event: PinchEvent): void {
+    this.logInfo(`Pinch released for ${event.hand} hand`);
+
     const state = this.scrollStates.get(event.hand)!;
     const handState = this.pinchDetector.getHandState(event.hand);
 
@@ -405,44 +339,14 @@ export class ScrollController {
    * Apply scroll to target
    */
   private applyScroll(target: Element | Window, position: Position): void {
-    const beforeScroll = {
-      x: this.getTargetScrollLeft(target),
-      y: this.getTargetScrollTop(target),
-    };
-
-    console.log(`[ScrollController] applyScroll called:`, {
-      target: target === window ? "window" : (target as Element)?.tagName,
-      requestedPosition: position,
-      currentScrollPosition: beforeScroll,
-      scrollToMethod:
-        target === window ? "window.scrollTo" : "element.scrollTo",
-    });
-
     try {
       if (target === window) {
         window.scrollTo(position.x, position.y);
       } else {
         (target as Element).scrollTo(position.x, position.y);
       }
-
-      const afterScroll = {
-        x: this.getTargetScrollLeft(target),
-        y: this.getTargetScrollTop(target),
-      };
-
-      console.log(`[ScrollController] applyScroll result:`, {
-        beforeScroll,
-        afterScroll,
-        actualChange: {
-          x: afterScroll.x - beforeScroll.x,
-          y: afterScroll.y - beforeScroll.y,
-        },
-        success:
-          Math.abs(afterScroll.x - position.x) < 1 &&
-          Math.abs(afterScroll.y - position.y) < 1,
-      });
     } catch (error) {
-      console.error(`[ScrollController] applyScroll failed:`, error);
+      this.logError(`applyScroll failed:`, error);
     }
   }
 
