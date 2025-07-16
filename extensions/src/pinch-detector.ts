@@ -59,7 +59,8 @@ export class PinchDetector {
     hand: HandType,
     landmarks: HandLandmarks,
     videoWidth: number,
-    videoHeight: number
+    videoHeight: number,
+    screenPosition?: { x: number; y: number }
   ): void {
     const state = this.states.get(hand)!;
 
@@ -82,7 +83,13 @@ export class PinchDetector {
     const isCurrentlyPinching = this.detectPinch(state);
 
     // Update frame counters and state
-    this.updatePinchState(hand, state, isCurrentlyPinching, indexTip);
+    this.updatePinchState(
+      hand,
+      state,
+      isCurrentlyPinching,
+      indexTip,
+      screenPosition
+    );
 
     // Update current pinch position
     state.curPinch = { x: indexTip.x, y: indexTip.y };
@@ -105,7 +112,7 @@ export class PinchDetector {
   }
 
   /**
-   * Calculate normalized pinch distance
+   * Calculate pinch distance (MediaPipe already provides normalized coordinates)
    */
   private calculatePinchDistance(
     indexTip: { x: number; y: number },
@@ -113,13 +120,24 @@ export class PinchDetector {
     videoWidth: number,
     videoHeight: number
   ): number {
+    // MediaPipe provides normalized coordinates (0-1), so calculate raw distance
     const distance = Math.sqrt(
       Math.pow(indexTip.x - thumbTip.x, 2) +
         Math.pow(indexTip.y - thumbTip.y, 2)
     );
 
-    // Normalize by the larger dimension
-    return distance / Math.max(videoWidth, videoHeight);
+    // DEBUG: Log distance calculation
+    console.log(`[PinchDetector] Pinch distance calculation:`, {
+      indexTip,
+      thumbTip,
+      distance,
+      enterThreshold: this.config.pinchEnterThreshold,
+      exitThreshold: this.config.pinchExitThreshold,
+      referenceThreshold: 0.045,
+    });
+
+    // Return raw distance since MediaPipe coordinates are already normalized
+    return distance;
   }
 
   /**
@@ -143,10 +161,24 @@ export class PinchDetector {
 
     if (!state.isPinching) {
       // Not currently pinching - use lower threshold to enter
-      return smoothedDistance < this.config.pinchEnterThreshold;
+      const result = smoothedDistance < this.config.pinchEnterThreshold;
+      console.log(`[PinchDetector] Pinch detection (not pinching):`, {
+        smoothedDistance,
+        enterThreshold: this.config.pinchEnterThreshold,
+        result,
+        comparison: `${smoothedDistance} < ${this.config.pinchEnterThreshold} = ${result}`,
+      });
+      return result;
     } else {
       // Currently pinching - use higher threshold to exit (hysteresis)
-      return smoothedDistance < this.config.pinchExitThreshold;
+      const result = smoothedDistance < this.config.pinchExitThreshold;
+      console.log(`[PinchDetector] Pinch detection (currently pinching):`, {
+        smoothedDistance,
+        exitThreshold: this.config.pinchExitThreshold,
+        result,
+        comparison: `${smoothedDistance} < ${this.config.pinchExitThreshold} = ${result}`,
+      });
+      return result;
     }
   }
 
@@ -157,7 +189,8 @@ export class PinchDetector {
     hand: HandType,
     state: HandState,
     isCurrentlyPinching: boolean,
-    indexTip: { x: number; y: number }
+    indexTip: { x: number; y: number },
+    screenPosition?: { x: number; y: number }
   ): void {
     // Handle state transitions
     if (isCurrentlyPinching && !state.isPinching) {
@@ -173,7 +206,7 @@ export class PinchDetector {
         this.emitEvent("pinch-start", {
           type: "pinch-start",
           hand,
-          position: { x: indexTip.x, y: indexTip.y },
+          position: screenPosition || { x: indexTip.x, y: indexTip.y },
           origPinch: state.origPinch,
           curPinch: state.curPinch,
         });
@@ -189,7 +222,7 @@ export class PinchDetector {
         this.emitEvent("pinch-released", {
           type: "pinch-released",
           hand,
-          position: { x: indexTip.x, y: indexTip.y },
+          position: screenPosition || { x: indexTip.x, y: indexTip.y },
           origPinch: state.origPinch,
           curPinch: state.curPinch,
         });
@@ -209,7 +242,7 @@ export class PinchDetector {
         this.emitEvent("pinch-held", {
           type: "pinch-held",
           hand,
-          position: { x: indexTip.x, y: indexTip.y },
+          position: screenPosition || { x: indexTip.x, y: indexTip.y },
           origPinch: state.origPinch,
           curPinch: state.curPinch,
         });
@@ -217,7 +250,7 @@ export class PinchDetector {
         this.emitEvent("pinch-move", {
           type: "pinch-move",
           hand,
-          position: { x: indexTip.x, y: indexTip.y },
+          position: screenPosition || { x: indexTip.x, y: indexTip.y },
           origPinch: state.origPinch,
           curPinch: state.curPinch,
         });

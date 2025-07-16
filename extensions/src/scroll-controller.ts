@@ -59,6 +59,13 @@ export class ScrollController {
    * Handle pinch start event
    */
   private handlePinchStart(event: PinchEvent): void {
+    console.log(`[ScrollController] Pinch start event received:`, {
+      hand: event.hand,
+      position: event.position,
+      origPinch: event.origPinch,
+      curPinch: event.curPinch,
+    });
+
     const state = this.scrollStates.get(event.hand)!;
     const handState = this.pinchDetector.getHandState(event.hand);
 
@@ -67,7 +74,19 @@ export class ScrollController {
 
     // Find scrollable target at position
     const element = document.elementFromPoint(screenPos.x, screenPos.y);
+    console.log(`[ScrollController] Element at point:`, {
+      screenPos,
+      element: element?.tagName,
+      elementClass: element?.className,
+    });
+
     state.target = this.findScrollableParent(element);
+    console.log(`[ScrollController] Found scroll target:`, {
+      target:
+        state.target === window ? "window" : (state.target as Element)?.tagName,
+      targetClass:
+        state.target !== window ? (state.target as Element)?.className : "N/A",
+    });
 
     // Store original scroll position
     state.origScrollPos = {
@@ -78,6 +97,11 @@ export class ScrollController {
     // Initialize tween scroll position
     state.tweenScroll.x = state.origScrollPos.x;
     state.tweenScroll.y = state.origScrollPos.y;
+
+    console.log(`[ScrollController] Initial scroll positions:`, {
+      origScrollPos: state.origScrollPos,
+      tweenScroll: state.tweenScroll,
+    });
 
     // Kill any existing tweens for this hand
     gsap.killTweensOf(state.tweenScroll);
@@ -95,10 +119,20 @@ export class ScrollController {
    * Handle pinch held event (continuous scrolling)
    */
   private handlePinchHeld(event: PinchEvent): void {
+    console.log(`[ScrollController] Pinch held event received:`, {
+      hand: event.hand,
+      position: event.position,
+      origPinch: event.origPinch,
+      curPinch: event.curPinch,
+    });
+
     const state = this.scrollStates.get(event.hand)!;
     const handState = this.pinchDetector.getHandState(event.hand);
 
-    if (!state.target) return;
+    if (!state.target) {
+      console.log(`[ScrollController] No scroll target, skipping scroll`);
+      return;
+    }
 
     // Calculate movement delta
     // Note: x direction is negated to match natural scrolling
@@ -113,6 +147,21 @@ export class ScrollController {
     const pixelXDiff = xDiff * viewportWidth;
     const pixelYDiff = yDiff * viewportHeight;
 
+    console.log(`[ScrollController] Scroll calculations:`, {
+      xDiff,
+      yDiff,
+      viewportWidth,
+      viewportHeight,
+      pixelXDiff,
+      pixelYDiff,
+      scrollSpeed: this.config.scrollSpeed,
+      currentTweenScroll: { ...state.tweenScroll },
+      newTweenScroll: {
+        x: state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed,
+        y: state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed,
+      },
+    });
+
     // Apply continuous scrolling with GSAP
     gsap.to(state.tweenScroll, {
       x: state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed,
@@ -124,6 +173,13 @@ export class ScrollController {
       onUpdate: () => {
         // Apply scroll to target
         if (state.target) {
+          console.log(`[ScrollController] Applying scroll:`, {
+            target:
+              state.target === window
+                ? "window"
+                : (state.target as Element)?.tagName,
+            scrollPosition: { ...state.tweenScroll },
+          });
           this.applyScroll(state.target, state.tweenScroll);
         }
       },

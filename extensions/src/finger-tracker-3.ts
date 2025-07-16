@@ -87,9 +87,6 @@ export class FingerTracker3 {
         `[FingerTracker3] Processing ${hand} hand (${handedness.label})`
       );
 
-      // Process hand for pinch detection
-      this.pinchDetector.processHand(hand, landmarks, videoWidth, videoHeight);
-
       // Update visual position
       const indexTip = landmarks[8];
       console.log(`[FingerTracker3] ${hand} index tip landmark:`, indexTip);
@@ -103,6 +100,15 @@ export class FingerTracker3 {
       );
 
       console.log(`[FingerTracker3] ${hand} screen position:`, screenPos);
+
+      // Process hand for pinch detection with screen position
+      this.pinchDetector.processHand(
+        hand,
+        landmarks,
+        videoWidth,
+        videoHeight,
+        screenPos
+      );
 
       this.visualFeedback.updatePosition(hand, screenPos);
     });
@@ -174,15 +180,20 @@ export class FingerTracker3 {
     // Handle mirroring
     if (isMirrored) {
       normalizedX = 1 - normalizedX;
+      console.log(
+        `[FingerTracker3] Applied mirroring: ${landmark.x} -> ${normalizedX}`
+      );
     }
 
     // Convert to screen coordinates
     const screenX = normalizedX * window.innerWidth;
     const screenY = normalizedY * window.innerHeight;
 
-    console.log(`[FingerTracker3] landmarkToScreen output:`, {
-      x: screenX,
-      y: screenY,
+    console.log(`[FingerTracker3] landmarkToScreen transformation:`, {
+      input: { x: landmark.x, y: landmark.y },
+      normalized: { x: normalizedX, y: normalizedY },
+      screen: { x: screenX, y: screenY },
+      windowSize: { width: window.innerWidth, height: window.innerHeight },
     });
 
     return { x: screenX, y: screenY };
