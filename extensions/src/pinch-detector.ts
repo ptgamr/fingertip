@@ -85,19 +85,15 @@ export class PinchDetector {
     // Update current pinch position BEFORE state transitions
     state.curPinch = { x: indexTip.x, y: indexTip.y };
 
-    console.log(`[PinchDetector] State update for ${hand}:`, {
-      wasPinching: state.isPinching,
-      isCurrentlyPinching,
-      pinchState: state.pinchState,
-      pinchFrameCount: state.pinchFrameCount,
-      releaseFrameCount: state.releaseFrameCount,
-      smoothedDistance: state.smoothedPinchDistance?.toFixed(4),
-      stateTransition: {
+    // Only log significant state changes
+    if (state.isPinching !== isCurrentlyPinching) {
+      console.log(`[PinchDetector] ${hand} hand state change:`, {
         from: state.isPinching ? "pinching" : "not-pinching",
         to: isCurrentlyPinching ? "pinching" : "not-pinching",
-        willChange: state.isPinching !== isCurrentlyPinching,
-      },
-    });
+        pinchState: state.pinchState,
+        frameCount: state.pinchFrameCount,
+      });
+    }
 
     // Update frame counters and state BEFORE updating isPinching
     this.updatePinchState(
@@ -151,24 +147,12 @@ export class PinchDetector {
         Math.pow(indexTip.y - thumbTip.y, 2)
     );
 
-    // Enhanced DEBUG: Log distance calculation with threshold analysis
-    console.log(`[PinchDetector] Pinch distance calculation:`, {
-      indexTip,
-      thumbTip,
-      distance: distance.toFixed(4),
-      enterThreshold: this.config.pinchEnterThreshold,
-      exitThreshold: this.config.pinchExitThreshold,
-      videoWidth,
-      videoHeight,
-      distanceAnalysis: {
-        belowEnterThreshold: distance < this.config.pinchEnterThreshold,
-        belowExitThreshold: distance < this.config.pinchExitThreshold,
-        percentOfEnterThreshold:
-          ((distance / this.config.pinchEnterThreshold) * 100).toFixed(1) + "%",
-        percentOfExitThreshold:
-          ((distance / this.config.pinchExitThreshold) * 100).toFixed(1) + "%",
-      },
-    });
+    // Only log distance calculation issues
+    if (videoWidth <= 1 || videoHeight <= 1) {
+      console.log(
+        `[PinchDetector] Distance: ${distance.toFixed(4)} (thresholds: enter=${this.config.pinchEnterThreshold}, exit=${this.config.pinchExitThreshold})`
+      );
+    }
 
     // Return raw distance since MediaPipe coordinates are already normalized
     return distance;
@@ -196,41 +180,10 @@ export class PinchDetector {
     if (!state.isPinching) {
       // Not currently pinching - use lower threshold to enter
       const result = smoothedDistance < this.config.pinchEnterThreshold;
-      console.log(`[PinchDetector] Pinch detection (not pinching):`, {
-        smoothedDistance: smoothedDistance.toFixed(4),
-        enterThreshold: this.config.pinchEnterThreshold,
-        result,
-        comparison: `${smoothedDistance.toFixed(4)} < ${this.config.pinchEnterThreshold} = ${result}`,
-        thresholdCalibration: {
-          distanceToThreshold: (
-            smoothedDistance - this.config.pinchEnterThreshold
-          ).toFixed(4),
-          percentageOfThreshold:
-            (
-              (smoothedDistance / this.config.pinchEnterThreshold) *
-              100
-            ).toFixed(1) + "%",
-        },
-      });
       return result;
     } else {
       // Currently pinching - use higher threshold to exit (hysteresis)
       const result = smoothedDistance < this.config.pinchExitThreshold;
-      console.log(`[PinchDetector] Pinch detection (currently pinching):`, {
-        smoothedDistance: smoothedDistance.toFixed(4),
-        exitThreshold: this.config.pinchExitThreshold,
-        result,
-        comparison: `${smoothedDistance.toFixed(4)} < ${this.config.pinchExitThreshold} = ${result}`,
-        thresholdCalibration: {
-          distanceToThreshold: (
-            smoothedDistance - this.config.pinchExitThreshold
-          ).toFixed(4),
-          percentageOfThreshold:
-            ((smoothedDistance / this.config.pinchExitThreshold) * 100).toFixed(
-              1
-            ) + "%",
-        },
-      });
       return result;
     }
   }
@@ -245,41 +198,18 @@ export class PinchDetector {
     indexTip: { x: number; y: number },
     screenPosition?: { x: number; y: number }
   ): void {
-    console.log(`[PinchDetector] FRAME COUNT DEBUG - Entry:`, {
-      hand,
-      isCurrentlyPinching,
-      wasPinching: state.isPinching,
-      currentFrameCount: state.pinchFrameCount,
-      currentState: state.pinchState,
-      branchToTake:
-        isCurrentlyPinching && !state.isPinching
-          ? "STARTING"
-          : !isCurrentlyPinching && state.isPinching
-            ? "RELEASING"
-            : isCurrentlyPinching
-              ? "CONTINUING"
-              : "NOT_PINCHING",
-    });
-
     // Handle state transitions
     if (isCurrentlyPinching && !state.isPinching) {
       // Starting to pinch - reset and start counting
-      state.pinchFrameCount = 1; // Start at 1, not increment from previous
+      state.pinchFrameCount = 1;
       state.releaseFrameCount = 0;
-
-      console.log(`[PinchDetector] FRAME COUNT DEBUG - STARTING branch:`, {
-        hand,
-        frameCountReset: state.pinchFrameCount,
-        framesToConfirm: this.config.framesToConfirmPinch,
-        willEmitStart:
-          state.pinchFrameCount >= this.config.framesToConfirmPinch,
-      });
 
       if (state.pinchFrameCount >= this.config.framesToConfirmPinch) {
         // Confirmed pinch start
         state.origPinch = { x: indexTip.x, y: indexTip.y };
         state.pinchState = "start";
 
+        console.log(`[PinchDetector] ${hand} pinch started`);
         this.emitEvent("pinch-start", {
           type: "pinch-start",
           hand,
@@ -292,18 +222,11 @@ export class PinchDetector {
       // Releasing pinch
       state.releaseFrameCount++;
 
-      console.log(`[PinchDetector] FRAME COUNT DEBUG - RELEASING branch:`, {
-        hand,
-        releaseFrameCount: state.releaseFrameCount,
-        framesToRelease: this.config.framesToReleasePinch,
-        willEmitRelease:
-          state.releaseFrameCount >= this.config.framesToReleasePinch,
-      });
-
       if (state.releaseFrameCount >= this.config.framesToReleasePinch) {
         // Confirmed release
         state.pinchState = "released";
 
+        console.log(`[PinchDetector] ${hand} pinch released`);
         this.emitEvent("pinch-released", {
           type: "pinch-released",
           hand,
@@ -320,22 +243,12 @@ export class PinchDetector {
         // Still accumulating frames to reach start state
         state.pinchFrameCount++;
 
-        console.log(
-          `[PinchDetector] FRAME COUNT DEBUG - CONTINUING (accumulating):`,
-          {
-            hand,
-            frameCountAfter: state.pinchFrameCount,
-            framesToConfirm: this.config.framesToConfirmPinch,
-            willEmitStart:
-              state.pinchFrameCount >= this.config.framesToConfirmPinch,
-          }
-        );
-
         if (state.pinchFrameCount >= this.config.framesToConfirmPinch) {
           // Confirmed pinch start
           state.origPinch = { x: indexTip.x, y: indexTip.y };
           state.pinchState = "start";
 
+          console.log(`[PinchDetector] ${hand} pinch started (accumulated)`);
           this.emitEvent("pinch-start", {
             type: "pinch-start",
             hand,
@@ -346,31 +259,15 @@ export class PinchDetector {
         }
       } else {
         // Already in start or held state - handle transitions
-        console.log(
-          `[PinchDetector] FRAME COUNT DEBUG - CONTINUING (in state):`,
-          {
-            hand,
-            currentState: state.pinchState,
-            frameCount: state.pinchFrameCount,
-            maxPinchHeldFrames: this.config.maxPinchHeldFrames,
-            willTransitionToHeld:
-              state.pinchState === "start" &&
-              state.pinchFrameCount > this.config.maxPinchHeldFrames,
-          }
-        );
-
         if (
           state.pinchState === "start" &&
           state.pinchFrameCount > this.config.maxPinchHeldFrames
         ) {
           state.pinchState = "held";
-          console.log(
-            `[PinchDetector] Transitioned to held state for ${hand} hand`
-          );
+          console.log(`[PinchDetector] ${hand} pinch transitioned to held`);
         }
 
         if (state.pinchState === "held") {
-          console.log(`[PinchDetector] Emitting pinch-held for ${hand} hand`);
           this.emitEvent("pinch-held", {
             type: "pinch-held",
             hand,
@@ -395,44 +292,15 @@ export class PinchDetector {
       state.releaseFrameCount = 0;
     } else {
       // Not pinching
-      console.log(`[PinchDetector] FRAME COUNT DEBUG - NOT_PINCHING branch:`, {
-        hand,
-        frameCountBefore: state.pinchFrameCount,
-        framesSinceLastPinch: state.framesSinceLastPinch,
-        errorToleranceFrames: this.config.errorToleranceFrames,
-        willResetState:
-          state.framesSinceLastPinch > this.config.errorToleranceFrames,
-        aboutToResetFrameCount: true,
-      });
-
       state.framesSinceLastPinch++;
 
       if (state.framesSinceLastPinch > this.config.errorToleranceFrames) {
         state.pinchState = "";
-        console.log(
-          `[PinchDetector] FRAME COUNT DEBUG - Resetting pinch state to empty`
-        );
       }
 
       state.pinchFrameCount = 0;
       state.releaseFrameCount++;
-
-      console.log(
-        `[PinchDetector] FRAME COUNT DEBUG - NOT_PINCHING after reset:`,
-        {
-          hand,
-          frameCountAfter: state.pinchFrameCount,
-          resetToZero: true,
-        }
-      );
     }
-
-    console.log(`[PinchDetector] FRAME COUNT DEBUG - Exit:`, {
-      hand,
-      finalFrameCount: state.pinchFrameCount,
-      finalState: state.pinchState,
-      finalIsPinching: state.isPinching,
-    });
   }
 
   /**
@@ -485,27 +353,22 @@ export class PinchDetector {
    */
   private emitEvent(type: PinchEventType, event: PinchEvent): void {
     const listeners = this.eventListeners.get(type) || [];
-    console.log(`[PinchDetector] Emitting event:`, {
-      type,
-      hand: event.hand,
-      position: event.position,
-      origPinch: event.origPinch,
-      curPinch: event.curPinch,
-      listenerCount: listeners.length,
-      timestamp: Date.now(),
-    });
+
+    // Only log important events
+    if (type === "pinch-start" || type === "pinch-released") {
+      console.log(
+        `[PinchDetector] Emitting ${type} for ${event.hand} hand (${listeners.length} listeners)`
+      );
+    }
 
     listeners.forEach((callback, index) => {
-      console.log(
-        `[PinchDetector] Calling listener ${index + 1}/${listeners.length} for ${type}`
-      );
       try {
         callback(event);
-        console.log(
-          `[PinchDetector] Listener ${index + 1} completed successfully`
-        );
       } catch (error) {
-        console.error(`[PinchDetector] Listener ${index + 1} failed:`, error);
+        console.error(
+          `[PinchDetector] Listener ${index + 1} failed for ${type}:`,
+          error
+        );
       }
     });
   }
