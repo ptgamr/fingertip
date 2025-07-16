@@ -1,6 +1,6 @@
 /// <reference types="chrome"/>
 
-import { FingerTracker2 } from "./finger-tracker-2";
+import { FingerTracker3 } from "./finger-tracker-3";
 import {
   HandDetector,
   HandDetectionResult,
@@ -34,7 +34,7 @@ export class FGTCamera {
   observer?: MutationObserver;
   handDetector: HandDetector | null = null;
   animationId: number | null = null;
-  fingerTracker: FingerTracker2 | null = null;
+  fingerTracker: FingerTracker3 | null = null;
   handDetectorType: HandDetectorType = "offscreen";
 
   constructor(
@@ -126,13 +126,6 @@ export class FGTCamera {
       return;
     }
 
-    // Get the first hand prediction
-    const hand = predictions[0];
-    if (!hand.indexFingerTip || !hand.landmarks) {
-      this.fingerTracker?.hide();
-      return;
-    }
-
     // Get video dimensions
     let videoWidth, videoHeight;
     if (this.handDetector instanceof OffscreenHandDetector) {
@@ -143,9 +136,20 @@ export class FGTCamera {
       videoHeight = this.video.videoHeight;
     }
 
-    // Use the new updateWithLandmarks method for pinching detection and scrolling
-    this.fingerTracker?.updateWithLandmarks(
-      hand.landmarks,
+    // Convert predictions to multi-hand format for FingerTracker3
+    const multiHandLandmarks = predictions
+      .map((pred) => pred.landmarks)
+      .filter(Boolean);
+    const multiHandedness = predictions.map((pred, index) => ({
+      index,
+      score: pred.score || 1.0,
+      label: pred.handedness || "Right", // Default to right hand if not specified
+    }));
+
+    // Update with multi-hand landmarks
+    this.fingerTracker?.updateWithMultiHandLandmarks(
+      multiHandLandmarks,
+      multiHandedness,
       videoWidth,
       videoHeight,
       this.settings.mirror
@@ -597,7 +601,7 @@ export class FGTCamera {
 
       // Create finger tracker when video stream starts
       if (!this.fingerTracker) {
-        this.fingerTracker = new FingerTracker2();
+        this.fingerTracker = new FingerTracker3();
       }
 
       this.watchPunch();
@@ -631,7 +635,7 @@ export class FGTCamera {
 
         // Create finger tracker when video stream starts
         if (!this.fingerTracker) {
-          this.fingerTracker = new FingerTracker2();
+          this.fingerTracker = new FingerTracker3();
         }
 
         this.watchPunch();

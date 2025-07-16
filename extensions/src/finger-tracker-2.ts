@@ -81,7 +81,7 @@ export class FingerTracker2 {
   private readonly FRAMES_TO_CONFIRM_PINCH = 3;
   private readonly FRAMES_TO_RELEASE_PINCH = 5;
   private readonly MAX_PINCH_HELD_FRAMES = 1;
-  private readonly SCROLL_SPEED = 0.2; // Significantly reduced for very slow scrolling
+  private readonly SCROLL_SPEED = 1; // Match reference implementation's default speed
   private readonly ERROR_TOLERANCE_FRAMES = 5;
 
   // Debug element for tweening visualization
@@ -352,12 +352,8 @@ export class FingerTracker2 {
     } else if (this.pinchState === "held") {
       // Handle pinch scrolling
       if (this.currentScrollTarget) {
-        // Update origPinch to current position periodically to allow continuous scrolling
-        // This is similar to how the reference implementation works
-        if (this.pinchFrameCount % 10 === 0) {
-          this.origPinch = { ...this.curPinch };
-        }
-
+        // Don't update origPinch periodically - let the continuous difference drive the scrolling
+        // This matches the reference implementation's approach
         this.handlePinchScroll(videoWidth, videoHeight);
       }
 
@@ -444,23 +440,15 @@ export class FingerTracker2 {
     }
 
     // Apply continuous movement calculation - exactly matching reference implementation
-    // This is the key change - we're adding to the current tweenScroll values rather than setting them directly
     gsap.to(this.tweenScroll, {
       x: this.tweenScroll.x + xDiff * this.SCROLL_SPEED,
       y: this.tweenScroll.y + yDiff * this.SCROLL_SPEED,
-      duration: 1.5, // Increased duration for even smoother scrolling (longer than reference)
+      duration: 1, // Match reference implementation duration
       ease: "linear.easeNone", // Linear easing for consistent scrolling (matching reference)
       overwrite: true,
       immediateRender: true, // Immediate rendering for responsive scrolling (matching reference)
       onUpdate: () => {
-        if (this.currentScrollTarget) {
-          // Apply scroll
-          this.currentScrollTarget.scrollTo({
-            left: this.tweenScroll.x,
-            top: this.tweenScroll.y,
-            behavior: "auto" as ScrollBehavior, // We're handling the smoothing with GSAP
-          });
-        }
+        // No onUpdate callback - we'll apply the scroll outside the tween
       },
       onComplete: () => {
         // Reset dot color when tweening completes
@@ -475,6 +463,12 @@ export class FingerTracker2 {
         }
       },
     });
+
+    // Apply scroll directly, outside the tween's onUpdate callback
+    // This exactly matches the reference implementation's approach
+    if (this.currentScrollTarget) {
+      this.currentScrollTarget.scrollTo(this.tweenScroll.x, this.tweenScroll.y);
+    }
   }
 
   /**
