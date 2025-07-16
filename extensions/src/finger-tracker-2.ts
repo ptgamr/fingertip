@@ -81,12 +81,24 @@ export class FingerTracker2 {
   private readonly FRAMES_TO_CONFIRM_PINCH = 3;
   private readonly FRAMES_TO_RELEASE_PINCH = 5;
   private readonly MAX_PINCH_HELD_FRAMES = 1;
-  private readonly SCROLL_SPEED = 1.2;
+  private readonly SCROLL_SPEED = 0.2; // Significantly reduced for very slow scrolling
   private readonly ERROR_TOLERANCE_FRAMES = 5;
+
+  // Debug element for tweening visualization
+  private debugElement: HTMLElement | null = null;
+  private showDebug: boolean = true; // Set to false to disable debug visualization
 
   constructor() {
     this.dot = this.createDot();
     document.body.appendChild(this.dot);
+
+    // Create debug element if debug is enabled
+    if (this.showDebug) {
+      this.debugElement = this.createDebugElement();
+      if (this.debugElement) {
+        document.body.appendChild(this.debugElement);
+      }
+    }
 
     // Initialize event listeners map
     this.eventListeners.set("pinch-start", []);
@@ -110,6 +122,28 @@ export class FingerTracker2 {
     dot.style.transform = "translate(-50%, -50%)";
 
     return dot;
+  }
+
+  /**
+   * Create debug visualization element
+   */
+  private createDebugElement(): HTMLElement {
+    const debugElement = document.createElement("div");
+    debugElement.id = "fingertip-tracker-debug";
+    debugElement.style.position = "fixed";
+    debugElement.style.bottom = "10px";
+    debugElement.style.right = "10px";
+    debugElement.style.padding = "5px 10px";
+    debugElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    debugElement.style.color = "white";
+    debugElement.style.fontFamily = "monospace";
+    debugElement.style.fontSize = "12px";
+    debugElement.style.borderRadius = "4px";
+    debugElement.style.zIndex = "99999";
+    debugElement.style.pointerEvents = "none";
+    debugElement.textContent = "Tweening: inactive";
+
+    return debugElement;
   }
 
   /**
@@ -270,7 +304,7 @@ export class FingerTracker2 {
     const indexScreenX = normalizedX * viewportWidth;
     const indexScreenY = normalizedY * viewportHeight;
 
-    // Update current pinch position
+    // Update current pinch position for continuous tracking during pinch-and-drag
     this.curPinch = { x: indexTip.x, y: indexTip.y };
 
     // Add to pinch history
@@ -318,6 +352,12 @@ export class FingerTracker2 {
     } else if (this.pinchState === "held") {
       // Handle pinch scrolling
       if (this.currentScrollTarget) {
+        // Update origPinch to current position periodically to allow continuous scrolling
+        // This is similar to how the reference implementation works
+        if (this.pinchFrameCount % 10 === 0) {
+          this.origPinch = { ...this.curPinch };
+        }
+
         this.handlePinchScroll(videoWidth, videoHeight);
       }
 
@@ -390,16 +430,28 @@ export class FingerTracker2 {
     if (!this.currentScrollTarget) return;
 
     // Calculate movement based on pinch position difference
-    const xDiff = (this.origPinch.x - this.curPinch.x) * videoWidth;
+    // Note: x direction is negated, y direction is positive (matching reference implementation)
+    const xDiff = -(this.origPinch.x - this.curPinch.x) * videoWidth;
     const yDiff = (this.origPinch.y - this.curPinch.y) * videoHeight;
 
-    // Apply continuous movement calculation
+    // Debug visualization for tweening (changes dot color during active tweening)
+    this.dot.style.backgroundColor = "#ffff00"; // Yellow during active tweening
+
+    // Update debug element if it exists
+    if (this.debugElement) {
+      this.debugElement.textContent = `Tweening: active | Speed: ${this.SCROLL_SPEED} | Diff: ${xDiff.toFixed(2)},${yDiff.toFixed(2)}`;
+      this.debugElement.style.backgroundColor = "rgba(255, 255, 0, 0.7)";
+    }
+
+    // Apply continuous movement calculation - exactly matching reference implementation
+    // This is the key change - we're adding to the current tweenScroll values rather than setting them directly
     gsap.to(this.tweenScroll, {
       x: this.tweenScroll.x + xDiff * this.SCROLL_SPEED,
       y: this.tweenScroll.y + yDiff * this.SCROLL_SPEED,
-      duration: 0.3,
-      ease: "power1.out",
+      duration: 1.5, // Increased duration for even smoother scrolling (longer than reference)
+      ease: "linear.easeNone", // Linear easing for consistent scrolling (matching reference)
       overwrite: true,
+      immediateRender: true, // Immediate rendering for responsive scrolling (matching reference)
       onUpdate: () => {
         if (this.currentScrollTarget) {
           // Apply scroll
@@ -408,6 +460,18 @@ export class FingerTracker2 {
             top: this.tweenScroll.y,
             behavior: "auto" as ScrollBehavior, // We're handling the smoothing with GSAP
           });
+        }
+      },
+      onComplete: () => {
+        // Reset dot color when tweening completes
+        if (this.isPinching) {
+          this.dot.style.backgroundColor = "#00ff00"; // Green when pinching
+
+          // Update debug element
+          if (this.debugElement) {
+            this.debugElement.textContent = "Tweening: complete";
+            this.debugElement.style.backgroundColor = "rgba(0, 255, 0, 0.7)";
+          }
         }
       },
     });
@@ -575,6 +639,12 @@ export class FingerTracker2 {
     this.dot.style.display = "none";
     this.isVisible = false;
 
+    // Hide debug element if it exists
+    if (this.debugElement) {
+      this.debugElement.textContent = "Tweening: inactive";
+      this.debugElement.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    }
+
     // Clear all state when hiding
     this.positionHistory = [];
     this.pinchHistory = [];
@@ -595,9 +665,14 @@ export class FingerTracker2 {
    * Clean up resources
    */
   destroy(): void {
-    // Remove DOM element
+    // Remove DOM elements
     if (this.dot.parentElement) {
       this.dot.parentElement.removeChild(this.dot);
+    }
+
+    // Remove debug element if it exists
+    if (this.debugElement && this.debugElement.parentElement) {
+      this.debugElement.parentElement.removeChild(this.debugElement);
     }
 
     // Kill all tweens
