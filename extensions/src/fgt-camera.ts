@@ -15,6 +15,7 @@ import {
 } from "./detector-factory";
 import { OffscreenHandDetector } from "./offscreen-hand-detector";
 import { OffscreenFaceDetector } from "./offscreen-face-detector";
+import { OnscreenWebojiFaceDetector } from "./onscreen-weboji-face-detector";
 
 export interface Settings {
   shape: string;
@@ -46,8 +47,8 @@ export class FGTCamera {
   faceDetector: FaceDetector | null = null;
   animationId: number | null = null;
   fingerTracker: FingerTracker3 | null = null;
-  handDetectorType: HandDetectorType = "offscreen";
-  faceDetectorType: FaceDetectorType = "offscreen";
+  handDetectorType: HandDetectorType = "offscreen"; // because mediapipe needs to load WASM, and contentscript can't do that
+  faceDetectorType: FaceDetectorType = "onscreen"; // because offscreen.html doesn't support WebGL
   trackingMode: TrackingMode = "hand";
 
   constructor(
@@ -93,6 +94,11 @@ export class FGTCamera {
 
     element.appendChild(this.container);
 
+    console.log(
+      `[FGTCamera] canvas: ${this.canvas} webgl=`,
+      this.canvas.getContext("webgl")
+    );
+
     // Initialize detectors based on tracking mode
     if (finalTrackingMode === "hand") {
       this.initializeHandDetector(detectorType);
@@ -116,7 +122,10 @@ export class FGTCamera {
 
   async initializeFaceDetector(detectorType: FaceDetectorType): Promise<void> {
     try {
-      this.faceDetector = DetectorFactory.createFaceDetector(detectorType);
+      this.faceDetector = DetectorFactory.createFaceDetector(
+        detectorType,
+        this.canvas
+      );
       await this.faceDetector.initialize();
       console.log(`Face detector (${detectorType}) initialized successfully`);
     } catch (error) {
@@ -352,6 +361,11 @@ export class FGTCamera {
       } catch (error) {
         console.error("Failed to get video frame from offscreen:", error);
       }
+      return;
+    }
+
+    if (this.faceDetector instanceof OnscreenWebojiFaceDetector) {
+      // weboji take care of rendering video to the canvas
       return;
     }
 
@@ -596,7 +610,7 @@ export class FGTCamera {
           // Face detection mode
           if (this.faceDetector instanceof OffscreenFaceDetector) {
             // Render video first
-            await this.drawVideoToCanvas();
+            // await this.drawVideoToCanvas();
 
             // Then detect and draw face data
             await this.detectFace();
@@ -920,6 +934,17 @@ export class FGTCamera {
         this.startVideoRenderingLoop();
       }, 100);
 
+      return;
+    }
+
+    if (
+      this.trackingMode === "face" &&
+      this.faceDetector instanceof OnscreenWebojiFaceDetector
+    ) {
+      // weboji face detector handles its own video stream
+      await this.faceDetector.startTracking();
+      this.isRunning = true;
+      this.isWaitingStream = false;
       return;
     }
 

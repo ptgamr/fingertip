@@ -4,9 +4,10 @@ import { OnscreenMediaPipeHandDetector } from "./onscreen-mediapipe-hand-detecto
 import { OnscreenTensorFlowHandDetector } from "./onscreen-tensorflow-hand-detector";
 import { OffscreenHandDetector } from "./offscreen-hand-detector";
 import { OffscreenFaceDetector } from "./offscreen-face-detector";
+import { OnscreenWebojiFaceDetector } from "./onscreen-weboji-face-detector";
 
 export type HandDetectorType = "mediapipe" | "tensorflow" | "offscreen";
-export type FaceDetectorType = "offscreen";
+export type FaceDetectorType = "offscreen" | "onscreen";
 export type DetectorType = "hand" | "face";
 
 export class DetectorFactory {
@@ -36,11 +37,17 @@ export class DetectorFactory {
    * @returns A face detector instance
    */
   static createFaceDetector(
-    type: FaceDetectorType = "offscreen"
+    type: FaceDetectorType = "offscreen",
+    canvas?: HTMLCanvasElement
   ): FaceDetector {
     switch (type) {
       case "offscreen":
         return new OffscreenFaceDetector();
+      case "onscreen":
+        if (!canvas) {
+          throw new Error("Canvas is required for onscreen face detector");
+        }
+        return new OnscreenWebojiFaceDetector(canvas);
       default:
         throw new Error(`Unknown face detector type: ${type}`);
     }

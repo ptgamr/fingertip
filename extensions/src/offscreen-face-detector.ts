@@ -1,12 +1,5 @@
 import { FaceDetector, FaceDetectionResult } from "./face-detector-interface";
 
-interface OffscreenFaceDetectionResult {
-  translation: [number, number, number]; // x, y, z position
-  rotation: [number, number, number]; // pitch, yaw, roll in radians
-  morphTargets?: number[]; // Face expression morph targets
-  isDetected: boolean;
-}
-
 interface CameraSettings {
   width?: number;
   height?: number;
@@ -19,9 +12,9 @@ export class OffscreenFaceDetector implements FaceDetector {
 
   async initialize(): Promise<void> {}
 
-  async startTracking(): Promise<void> {
+  async startTracking(): Promise<boolean> {
     if (this.isTracking) {
-      return;
+      return true;
     }
 
     try {
@@ -50,6 +43,8 @@ export class OffscreenFaceDetector implements FaceDetector {
       console.error("Failed to start face tracking:", error);
       throw error;
     }
+
+    return true;
   }
 
   stopTracking(): void {
@@ -93,7 +88,7 @@ export class OffscreenFaceDetector implements FaceDetector {
       }
 
       // Convert offscreen result to our interface format
-      const offscreenResult: OffscreenFaceDetectionResult = response.data;
+      const offscreenResult: FaceDetectionResult = response.data;
 
       if (!offscreenResult) {
         return null;

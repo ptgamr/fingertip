@@ -30,7 +30,7 @@ export interface FaceDetector {
   /**
    * Start face tracking (for continuous detection)
    */
-  startTracking(): Promise<void>;
+  startTracking(cb?: (detectState: any) => void): Promise<boolean>;
 
   /**
    * Stop face tracking
