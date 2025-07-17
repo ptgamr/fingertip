@@ -47,91 +47,6 @@ class OffscreenHandDetector {
       "offscreen-canvas"
     ) as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
-
-    this.setupMessageListener();
-  }
-
-  private setupMessageListener(): void {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message.target !== "offscreen") {
-        return;
-      }
-      switch (message.command) {
-        case "start-camera":
-          this.startCamera(message.settings)
-            .then(() => sendResponse({ success: true }))
-            .catch((error) =>
-              sendResponse({ success: false, error: error.message })
-            );
-          return true; // Will respond asynchronously
-
-        case "stop-camera":
-          this.stopCamera();
-          sendResponse({ success: true });
-          break;
-
-        case "get-hand-detection":
-          console.log("Offscreen: Received hand detection request");
-          this.detectHands()
-            .then((results) => {
-              console.log(
-                `Offscreen: Returning ${results.length} hand detection results`
-              );
-              sendResponse({ success: true, data: results });
-            })
-            .catch((error) =>
-              sendResponse({ success: false, error: error.message })
-            );
-          return true; // Will respond asynchronously
-
-        case "start-face-tracking":
-          console.log("Offscreen: Starting face tracking");
-          ((window as any).faceDetector as OffscreenFaceDetector)
-            .startFaceTracking()
-            .then(() => sendResponse({ success: true }))
-            .catch((error) =>
-              sendResponse({ success: false, error: error.message })
-            );
-          return true; // Will respond asynchronously
-
-        case "stop-face-tracking":
-          console.log("Offscreen: Stopping face tracking");
-          (
-            (window as any).faceDetector as OffscreenFaceDetector
-          ).stopFaceTracking();
-          sendResponse({ success: true });
-          break;
-
-        case "get-face-detection":
-          console.log("Offscreen: Received face detection request");
-          ((window as any).faceDetector as OffscreenFaceDetector)
-            .detectFace()
-            .then((result) => {
-              console.log(
-                "Offscreen: Returning face detection result:",
-                result
-              );
-              sendResponse({ success: true, data: result });
-            })
-            .catch((error) =>
-              sendResponse({ success: false, error: error.message })
-            );
-          return true; // Will respond asynchronously
-
-        case "get-video-frame":
-          this.getVideoFrame()
-            .then((frameData) =>
-              sendResponse({ success: true, data: frameData })
-            )
-            .catch((error) =>
-              sendResponse({ success: false, error: error.message })
-            );
-          return true; // Will respond asynchronously
-
-        default:
-          sendResponse({ success: false, error: "Unknown command" });
-      }
-    });
   }
 
   async initialize(): Promise<void> {
@@ -352,7 +267,6 @@ class OffscreenHandDetector {
 
 class OffscreenFaceDetector {
   private jeelizInstance: any = null;
-  private video: HTMLVideoElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private isLoaded: boolean = false;
@@ -361,7 +275,6 @@ class OffscreenFaceDetector {
   private currentFaceData: OffscreenFaceDetectionResult | null = null;
 
   constructor() {
-    this.video = document.getElementById("offscreen-video") as HTMLVideoElement;
     this.canvas = document.getElementById("face-canvas") as HTMLCanvasElement;
     this.ctx = this.canvas.getContext("2d")!;
   }
@@ -377,10 +290,6 @@ class OffscreenFaceDetector {
         throw new Error("Jeeliz library not loaded");
       }
 
-      // Setup canvas dimensions
-      this.canvas.width = this.video.videoWidth || 640;
-      this.canvas.height = this.video.videoHeight || 480;
-
       // Get the extension URL for local files
       const extensionUrl = chrome.runtime.getURL("");
 
@@ -389,7 +298,8 @@ class OffscreenFaceDetector {
         canvasId: "face-canvas",
         NNCPath: `${extensionUrl}/models`, // Path to neural network models
         videoSettings: {
-          videoElement: this.video,
+          width: 640,
+          height: 480,
         },
         callbackReady: (errCode: number, spec: any) => {
           if (errCode) {
@@ -410,6 +320,19 @@ class OffscreenFaceDetector {
     } catch (error) {
       console.error("Failed to initialize Jeeliz face tracking:", error);
       throw error;
+    }
+  }
+
+  async getVideoFrame(): Promise<string | null> {
+    if (!this.isRunning) {
+      return null;
+    }
+
+    try {
+      return this.canvas.toDataURL("image/jpeg", 0.8);
+    } catch (error) {
+      console.error("Failed to capture video frame:", error);
+      return null;
     }
   }
 
@@ -509,14 +432,95 @@ class OffscreenFaceDetector {
 }
 
 // Initialize both detectors
-const offscreenDetector = new OffscreenHandDetector();
+const handDetector = new OffscreenHandDetector();
 const faceDetector = new OffscreenFaceDetector();
 
-// Make face detector globally accessible for message handler
-(window as any).faceDetector = faceDetector;
+function setupMessageListener() {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.target !== "offscreen") {
+      return;
+    }
+    switch (message.command) {
+      case "start-camera": {
+        if (message.mode === "hand") {
+          handDetector
+            .startCamera(message.settings)
+            .then(() => sendResponse({ success: true }))
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+        } else if (message.mode === "face") {
+          faceDetector
+            .startFaceTracking()
+            .then(() => sendResponse({ success: true }))
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+        }
+        return true; // Will respond asynchronously
+      }
+
+      case "stop-camera":
+        if (message.mode === "hand") {
+          handDetector.stopCamera();
+        } else if (message.mode === "face") {
+          faceDetector.stopFaceTracking();
+        }
+        sendResponse({ success: true });
+        break;
+
+      case "get-hand-detection":
+        console.log("Offscreen: Received hand detection request");
+        handDetector
+          .detectHands()
+          .then((results) => {
+            console.log(
+              `Offscreen: Returning ${results.length} hand detection results`
+            );
+            sendResponse({ success: true, data: results });
+          })
+          .catch((error) =>
+            sendResponse({ success: false, error: error.message })
+          );
+        return true; // Will respond asynchronously
+
+      case "get-face-detection":
+        console.log("Offscreen: Received face detection request");
+        faceDetector
+          .detectFace()
+          .then((result) => {
+            console.log("Offscreen: Returning face detection result:", result);
+            sendResponse({ success: true, data: result });
+          })
+          .catch((error) =>
+            sendResponse({ success: false, error: error.message })
+          );
+        return true; // Will respond asynchronously
+
+      case "get-video-frame": {
+        if (message.mode === "hand") {
+          handDetector
+            .getVideoFrame()
+            .then((frameData) =>
+              sendResponse({ success: true, data: frameData })
+            )
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+        } else if (message.mode === "face") {
+        }
+        return true; // Will respond asynchronously
+      }
+
+      default:
+        sendResponse({ success: false, error: "Unknown command" });
+    }
+  });
+}
+setupMessageListener();
 
 // Cleanup on window unload
 window.addEventListener("beforeunload", () => {
-  offscreenDetector.dispose();
+  handDetector.dispose();
   faceDetector.dispose();
 });

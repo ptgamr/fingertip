@@ -33,7 +33,7 @@
       "resources": [
         "models/hand_landmarker.task",
         "models/jeelizFaceExpressionsNNC.json",
-        "jeelizFaceExpressions.module.js",
+        "jeelizFaceExpressions.js",
         "mediapipe/wasm/vision_wasm_internal.js",
         "mediapipe/wasm/vision_wasm_internal.wasm",
         "mediapipe/wasm/vision_wasm_nosimd_internal.js",

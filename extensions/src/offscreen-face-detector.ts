@@ -14,51 +14,10 @@ interface CameraSettings {
 }
 
 export class OffscreenFaceDetector implements FaceDetector {
-  public isLoaded: boolean = false;
-  private isInitializing: boolean = false;
   private isTracking: boolean = false;
-
-  async initialize(): Promise<void> {
-    if (this.isLoaded || this.isInitializing) {
-      return;
-    }
-
-    this.isInitializing = true;
-
-    try {
-      console.log("Initializing offscreen face detector...");
-
-      // Start camera in offscreen document if not already started
-      const response = await chrome.runtime.sendMessage({
-        command: "start-camera",
-        target: "offscreen",
-        settings: {
-          width: 640,
-          height: 480,
-        } as CameraSettings,
-      });
-
-      if (!response.success) {
-        throw new Error(
-          response.error || "Failed to start camera in offscreen"
-        );
-      }
-
-      this.isLoaded = true;
-      console.log("Offscreen face detector initialized successfully");
-    } catch (error) {
-      console.error("Failed to initialize offscreen face detector:", error);
-      throw error;
-    } finally {
-      this.isInitializing = false;
-    }
-  }
+  isLoaded: boolean = true;
 
   async startTracking(): Promise<void> {
-    if (!this.isLoaded) {
-      await this.initialize();
-    }
-
     if (this.isTracking) {
       return;
     }
@@ -66,9 +25,15 @@ export class OffscreenFaceDetector implements FaceDetector {
     try {
       console.log("Starting face tracking in offscreen...");
 
+      // Start camera in offscreen document if not already started
       const response = await chrome.runtime.sendMessage({
-        command: "start-face-tracking",
+        command: "start-camera",
         target: "offscreen",
+        mode: "face",
+        settings: {
+          width: 640,
+          height: 480,
+        } as CameraSettings,
       });
 
       if (!response.success) {
@@ -159,6 +124,7 @@ export class OffscreenFaceDetector implements FaceDetector {
       // Stop camera in offscreen document
       chrome.runtime.sendMessage({
         command: "stop-camera",
+        mode: "face",
         target: "offscreen",
       });
 

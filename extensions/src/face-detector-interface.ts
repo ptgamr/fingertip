@@ -16,11 +16,6 @@ export interface FaceDetector {
   isLoaded: boolean;
 
   /**
-   * Initialize the face detection model
-   */
-  initialize(): Promise<void>;
-
-  /**
    * Detect face in a video element
    * @param video - The video element to analyze
    * @returns Face detection result

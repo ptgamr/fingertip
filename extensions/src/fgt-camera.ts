@@ -311,6 +311,7 @@ export class FGTCamera {
       try {
         const response = await chrome.runtime.sendMessage({
           command: "get-video-frame",
+          mode: this.trackingMode,
           target: "offscreen",
         });
 

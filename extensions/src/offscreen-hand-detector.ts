@@ -35,6 +35,7 @@ export class OffscreenHandDetector implements HandDetector {
       const response = await chrome.runtime.sendMessage({
         command: "start-camera",
         target: "offscreen",
+        mode: "hand",
         settings: {
           width: 640,
           height: 480,
@@ -115,6 +116,7 @@ export class OffscreenHandDetector implements HandDetector {
       chrome.runtime.sendMessage({
         command: "stop-camera",
         target: "offscreen",
+        mode: "hand",
       });
 
       this.isLoaded = false;
