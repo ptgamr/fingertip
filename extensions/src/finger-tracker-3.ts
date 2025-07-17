@@ -10,11 +10,13 @@ import {
 import { PinchDetector } from "./pinch-detector";
 import { ScrollController } from "./scroll-controller";
 import { VisualFeedback } from "./visual-feedback";
+import { DomainGestureHandler } from "./domain-gesture-handler";
 
 export class FingerTracker3 {
   private pinchDetector: PinchDetector;
   private scrollController: ScrollController;
   private visualFeedback: VisualFeedback;
+  private domainGestureHandler: DomainGestureHandler;
   private isInitialized: boolean = false;
 
   constructor(config?: FingerTrackerConfig) {
@@ -25,6 +27,7 @@ export class FingerTracker3 {
       config?.scroll
     );
     this.visualFeedback = new VisualFeedback(config?.visual);
+    this.domainGestureHandler = new DomainGestureHandler();
 
     // Setup internal event handling
     this.setupInternalEventHandlers();
@@ -97,6 +100,14 @@ export class FingerTracker3 {
         videoWidth,
         videoHeight,
         screenPos
+      );
+
+      // Process hand for domain-specific gestures
+      this.domainGestureHandler.processHand(
+        hand,
+        landmarks,
+        videoWidth,
+        videoHeight
       );
 
       this.visualFeedback.updatePosition(hand, screenPos);
@@ -210,6 +221,8 @@ export class FingerTracker3 {
     this.visualFeedback.hideDot("right");
     this.pinchDetector.resetHand("left");
     this.pinchDetector.resetHand("right");
+    this.domainGestureHandler.resetHand("left");
+    this.domainGestureHandler.resetHand("right");
   }
 
   /**
@@ -254,6 +267,13 @@ export class FingerTracker3 {
   }
 
   /**
+   * Get domain gesture handler instance (for advanced usage)
+   */
+  getDomainGestureHandler(): DomainGestureHandler {
+    return this.domainGestureHandler;
+  }
+
+  /**
    * Clean up all resources
    */
   destroy(): void {
@@ -261,5 +281,6 @@ export class FingerTracker3 {
     this.visualFeedback.destroy();
     this.scrollController.destroy();
     this.pinchDetector.destroy();
+    this.domainGestureHandler.destroy();
   }
 }
