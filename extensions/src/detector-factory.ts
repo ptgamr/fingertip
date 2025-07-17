@@ -1,7 +1,7 @@
 import { HandDetector } from "./hand-detector-interface";
 import { FaceDetector } from "./face-detector-interface";
-import { MediaPipeHandDetector } from "./mediapipe-hand-detector";
-import { TensorFlowHandDetector } from "./tensorflow-hand-detector";
+import { OnscreenMediaPipeHandDetector } from "./onscreen-mediapipe-hand-detector";
+import { OnscreenTensorFlowHandDetector } from "./onscreen-tensorflow-hand-detector";
 import { OffscreenHandDetector } from "./offscreen-hand-detector";
 import { OffscreenFaceDetector } from "./offscreen-face-detector";
 
@@ -20,9 +20,9 @@ export class DetectorFactory {
   ): HandDetector {
     switch (type) {
       case "mediapipe":
-        return new MediaPipeHandDetector();
+        return new OnscreenMediaPipeHandDetector();
       case "tensorflow":
-        return new TensorFlowHandDetector();
+        return new OnscreenTensorFlowHandDetector();
       case "offscreen":
         return new OffscreenHandDetector();
       default:

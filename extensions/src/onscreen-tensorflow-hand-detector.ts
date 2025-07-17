@@ -14,7 +14,7 @@ interface TensorFlowHandPose {
   landmarks: number[][];
 }
 
-export class TensorFlowHandDetector implements HandDetector {
+export class OnscreenTensorFlowHandDetector implements HandDetector {
   private handposeModel: handpose.HandPose | null = null;
   public isLoaded: boolean = false;
 

@@ -17,6 +17,8 @@ export class OffscreenFaceDetector implements FaceDetector {
   private isTracking: boolean = false;
   isLoaded: boolean = true;
 
+  async initialize(): Promise<void> {}
+
   async startTracking(): Promise<void> {
     if (this.isTracking) {
       return;
