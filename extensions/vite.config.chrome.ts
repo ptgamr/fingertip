@@ -25,6 +25,10 @@ export default defineConfig({
           src: "./src/libs/jeelizFaceExpressionsNNC.json",
           dest: "models/",
         },
+        {
+          src: "./src/libs/jeelizFaceExpressions.module.js",
+          dest: "",
+        },
       ],
     }),
   ],

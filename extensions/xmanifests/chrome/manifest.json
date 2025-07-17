@@ -9,13 +9,7 @@
   "action": {
     "default_icon": "res/bar-icon.png"
   },
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "storage",
-    "notifications",
-    "offscreen"
-  ],
+  "permissions": ["tabs", "activeTab", "storage", "notifications", "offscreen"],
   "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
@@ -38,6 +32,8 @@
     {
       "resources": [
         "models/hand_landmarker.task",
+        "models/jeelizFaceExpressionsNNC.json",
+        "jeelizFaceExpressions.module.js",
         "mediapipe/wasm/vision_wasm_internal.js",
         "mediapipe/wasm/vision_wasm_internal.wasm",
         "mediapipe/wasm/vision_wasm_nosimd_internal.js",

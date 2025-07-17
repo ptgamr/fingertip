@@ -6,8 +6,15 @@ import {
   HandDetectionResult,
   HandLandmark,
 } from "./hand-detector-interface";
-import { HandDetectorFactory, HandDetectorType } from "./hand-detector-factory";
+import { FaceDetector, FaceDetectionResult } from "./face-detector-interface";
+import {
+  DetectorFactory,
+  HandDetectorFactory,
+  HandDetectorType,
+  FaceDetectorType,
+} from "./detector-factory";
 import { OffscreenHandDetector } from "./offscreen-hand-detector";
+import { OffscreenFaceDetector } from "./offscreen-face-detector";
 
 export interface Settings {
   shape: string;
@@ -16,9 +23,12 @@ export interface Settings {
   position: string;
   trackTabs: boolean;
   trackPresentation: boolean;
+  trackingMode?: "hand" | "face";
 }
 
 // HandPose interface moved to hand-detector-interface.ts
+
+export type TrackingMode = "hand" | "face";
 
 export class FGTCamera {
   frame: HTMLElement;
@@ -33,14 +43,18 @@ export class FGTCamera {
   container: HTMLDivElement;
   observer?: MutationObserver;
   handDetector: HandDetector | null = null;
+  faceDetector: FaceDetector | null = null;
   animationId: number | null = null;
   fingerTracker: FingerTracker3 | null = null;
   handDetectorType: HandDetectorType = "offscreen";
+  faceDetectorType: FaceDetectorType = "offscreen";
+  trackingMode: TrackingMode = "hand";
 
   constructor(
     element: HTMLElement,
     settings: Settings,
-    detectorType: HandDetectorType = "offscreen"
+    detectorType: HandDetectorType = "offscreen",
+    trackingMode: TrackingMode = "hand"
   ) {
     this.frame = element;
     this.settings = settings || {
@@ -51,6 +65,9 @@ export class FGTCamera {
       trackTabs: true,
       trackPresentation: true,
     };
+
+    // Use trackingMode from settings if provided, otherwise use parameter
+    const finalTrackingMode = settings.trackingMode || trackingMode;
 
     this.video = document.createElement("video");
     this.canvas = document.createElement("canvas");
@@ -65,6 +82,7 @@ export class FGTCamera {
     this.isWaitingStream = false;
     this.fullscreenElementAttached = null;
     this.handDetectorType = detectorType;
+    this.trackingMode = finalTrackingMode;
 
     this.container = document.createElement("div");
     this.container.style.position = "relative";
@@ -75,8 +93,12 @@ export class FGTCamera {
 
     element.appendChild(this.container);
 
-    // Initialize hand detector
-    this.initializeHandDetector(detectorType);
+    // Initialize detectors based on tracking mode
+    if (finalTrackingMode === "hand") {
+      this.initializeHandDetector(detectorType);
+    } else if (finalTrackingMode === "face") {
+      this.initializeFaceDetector(this.faceDetectorType);
+    }
   }
 
   async initializeHandDetector(detectorType: HandDetectorType): Promise<void> {
@@ -87,6 +109,19 @@ export class FGTCamera {
     } catch (error) {
       console.error(
         `Failed to initialize hand detector (${detectorType}):`,
+        error
+      );
+    }
+  }
+
+  async initializeFaceDetector(detectorType: FaceDetectorType): Promise<void> {
+    try {
+      this.faceDetector = DetectorFactory.createFaceDetector(detectorType);
+      await this.faceDetector.initialize();
+      console.log(`Face detector (${detectorType}) initialized successfully`);
+    } catch (error) {
+      console.error(
+        `Failed to initialize face detector (${detectorType}):`,
         error
       );
     }
@@ -117,6 +152,34 @@ export class FGTCamera {
       this.trackIndexFinger(predictions);
     } catch (error) {
       console.error("Hand detection error:", error);
+    }
+  }
+
+  async detectFace(): Promise<void> {
+    if (!this.faceDetector || !this.faceDetector.isLoaded) {
+      return;
+    }
+
+    // For offscreen detector, skip video readiness check since camera is handled offscreen
+    if (!(this.faceDetector instanceof OffscreenFaceDetector)) {
+      if (!this.video || this.video.readyState !== 4) {
+        return;
+      }
+    }
+
+    try {
+      // Detect face using the face detector
+      const faceResult = await this.faceDetector.detectFace(this.video);
+
+      // Debug logging
+      if (faceResult && faceResult.isDetected) {
+        console.log("Face detected:", faceResult);
+      }
+
+      this.drawFaceData(faceResult);
+      this.trackFaceMovement(faceResult);
+    } catch (error) {
+      console.error("Face detection error:", error);
     }
   }
 
@@ -167,6 +230,37 @@ export class FGTCamera {
     );
   }
 
+  trackFaceMovement(faceResult: FaceDetectionResult | null): void {
+    if (!faceResult || !faceResult.isDetected) {
+      // Hide any face-related visual feedback
+      return;
+    }
+
+    // For now, we'll just log the face data
+    // In the future, this could control cursor movement based on head position
+    console.log("Face tracking data:", {
+      translation: faceResult.translation,
+      rotation: faceResult.rotation,
+    });
+
+    // Convert face position to screen coordinates for potential cursor control
+    const [x, y, z] = faceResult.translation;
+    const [pitch, yaw, roll] = faceResult.rotation;
+
+    // Map face position to screen coordinates (this is a basic implementation)
+    // The exact mapping would depend on the face tracking library's coordinate system
+    const screenX = (x + 1) * 0.5 * window.innerWidth; // Assuming x is in [-1, 1] range
+    const screenY = (y + 1) * 0.5 * window.innerHeight; // Assuming y is in [-1, 1] range
+
+    console.log("Mapped screen position:", {
+      screenX,
+      screenY,
+      pitch,
+      yaw,
+      roll,
+    });
+  }
+
   videoToPageCoordinates(
     videoX: number,
     videoY: number
@@ -208,8 +302,12 @@ export class FGTCamera {
       return;
     }
 
-    // For offscreen detector, get video frame from offscreen document
-    if (this.handDetector instanceof OffscreenHandDetector) {
+    // For offscreen detectors, get video frame from offscreen document
+    const isOffscreenMode =
+      this.handDetector instanceof OffscreenHandDetector ||
+      this.faceDetector instanceof OffscreenFaceDetector;
+
+    if (isOffscreenMode) {
       try {
         const response = await chrome.runtime.sendMessage({
           command: "get-video-frame",
@@ -411,36 +509,154 @@ export class FGTCamera {
     });
   }
 
+  drawFaceData(faceResult: FaceDetectionResult | null): void {
+    if (!this.ctx || !faceResult || !faceResult.isDetected) {
+      return;
+    }
+
+    // Save current context state
+    this.ctx.save();
+
+    // Apply mirroring if enabled (matching the video mirroring)
+    if (this.settings.mirror) {
+      this.ctx.scale(-1, 1);
+      this.ctx.translate(-this.canvas.width, 0);
+    }
+
+    // Draw face detection indicator
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+
+    // Draw face bounding indicator (simple circle for now)
+    this.ctx.strokeStyle = "#00ff00";
+    this.ctx.lineWidth = 3;
+    this.ctx.beginPath();
+    this.ctx.arc(centerX, centerY, 50, 0, 2 * Math.PI);
+    this.ctx.stroke();
+
+    // Draw face orientation indicators
+    const [x, y, z] = faceResult.translation;
+    const [pitch, yaw, roll] = faceResult.rotation;
+
+    // Draw orientation lines
+    this.ctx.strokeStyle = "#ff0000";
+    this.ctx.lineWidth = 2;
+
+    // Yaw (left-right head turn) - horizontal line
+    const yawLength = yaw * 30; // Scale for visibility
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX - yawLength, centerY);
+    this.ctx.lineTo(centerX + yawLength, centerY);
+    this.ctx.stroke();
+
+    // Pitch (up-down head tilt) - vertical line
+    const pitchLength = pitch * 30; // Scale for visibility
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX, centerY - pitchLength);
+    this.ctx.lineTo(centerX, centerY + pitchLength);
+    this.ctx.stroke();
+
+    // Draw text info
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.font = "12px Arial";
+    this.ctx.fillText(`Face Detected`, 10, 20);
+    this.ctx.fillText(`Yaw: ${yaw.toFixed(2)}`, 10, 35);
+    this.ctx.fillText(`Pitch: ${pitch.toFixed(2)}`, 10, 50);
+    this.ctx.fillText(`Roll: ${roll.toFixed(2)}`, 10, 65);
+
+    // Restore context state
+    this.ctx.restore();
+  }
+
   startVideoRenderingLoop(): void {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
     }
 
     const renderLoop = async () => {
-      // For offscreen detector, combine video rendering and hand detection
-      if (this.handDetector instanceof OffscreenHandDetector) {
-        try {
-          // Get hand detection results first
-          const predictions = await this.handDetector.detectHands(this.video);
+      try {
+        if (this.trackingMode === "hand") {
+          // Hand detection mode
+          if (this.handDetector instanceof OffscreenHandDetector) {
+            // Get hand detection results first
+            const predictions = await this.handDetector.detectHands(this.video);
 
-          // Render video with hand keypoints overlaid
-          await this.drawVideoToCanvas(predictions);
+            // Render video with hand keypoints overlaid
+            await this.drawVideoToCanvas(predictions);
 
-          // Track finger for cursor
-          this.trackIndexFinger(predictions);
-        } catch (error) {
-          console.error("Render loop error:", error);
+            // Track finger for cursor
+            this.trackIndexFinger(predictions);
+          } else {
+            // Original implementation for non-offscreen detectors
+            await this.drawVideoToCanvas();
+            await this.detectHands();
+          }
+        } else if (this.trackingMode === "face") {
+          // Face detection mode
+          if (this.faceDetector instanceof OffscreenFaceDetector) {
+            // Render video first
+            await this.drawVideoToCanvas();
+
+            // Then detect and draw face data
+            await this.detectFace();
+          } else {
+            // For future non-offscreen face detectors
+            await this.drawVideoToCanvas();
+            await this.detectFace();
+          }
         }
-      } else {
-        // Original implementation for non-offscreen detectors
-        await this.drawVideoToCanvas();
-        await this.detectHands();
+      } catch (error) {
+        console.error("Render loop error:", error);
       }
 
       this.animationId = requestAnimationFrame(renderLoop);
     };
 
     renderLoop();
+  }
+
+  async switchTrackingMode(mode: TrackingMode): Promise<void> {
+    if (this.trackingMode === mode) {
+      return; // Already in the requested mode
+    }
+
+    console.log(`Switching tracking mode from ${this.trackingMode} to ${mode}`);
+
+    // Stop current tracking
+    this.stopHandposeDetection();
+
+    // Stop face tracking if currently in face mode
+    if (this.trackingMode === "face" && this.faceDetector) {
+      this.faceDetector.stopTracking();
+    }
+
+    // Update mode
+    this.trackingMode = mode;
+
+    // Initialize new detector if needed
+    if (mode === "hand" && !this.handDetector) {
+      await this.initializeHandDetector(this.handDetectorType);
+    } else if (mode === "face" && !this.faceDetector) {
+      await this.initializeFaceDetector(this.faceDetectorType);
+    }
+
+    // Start face tracking if switching to face mode
+    if (mode === "face" && this.faceDetector) {
+      await this.faceDetector.startTracking();
+    }
+
+    // Restart rendering loop with new mode
+    if (this.isRunning) {
+      this.startVideoRenderingLoop();
+    }
+  }
+
+  async startHandTracking(): Promise<void> {
+    await this.switchTrackingMode("hand");
+  }
+
+  async startFaceTracking(): Promise<void> {
+    await this.switchTrackingMode("face");
   }
 
   stopHandposeDetection(): void {
@@ -648,22 +864,35 @@ export class FGTCamera {
       return;
     }
 
-    if (!this.handDetector) {
-      await this.initializeHandDetector(this.handDetectorType);
+    // Initialize the appropriate detector based on tracking mode
+    if (this.trackingMode === "hand") {
+      if (!this.handDetector) {
+        await this.initializeHandDetector(this.handDetectorType);
+      }
+    } else if (this.trackingMode === "face") {
+      if (!this.faceDetector) {
+        await this.initializeFaceDetector(this.faceDetectorType);
+      }
     }
 
-    // For offscreen detector, we don't need to request camera access here
+    // For offscreen detectors, we don't need to request camera access here
     // Camera access is handled in the offscreen document
-    if (this.handDetector instanceof OffscreenHandDetector) {
+    const isOffscreenMode =
+      (this.trackingMode === "hand" &&
+        this.handDetector instanceof OffscreenHandDetector) ||
+      (this.trackingMode === "face" &&
+        this.faceDetector instanceof OffscreenFaceDetector);
+
+    if (isOffscreenMode) {
       this.isWaitingStream = true;
 
       // Simulate video loading for offscreen detector
-      setTimeout(() => {
+      setTimeout(async () => {
         this.isRunning = true;
         this.isWaitingStream = false;
 
-        // Create finger tracker when video stream starts
-        if (!this.fingerTracker) {
+        // Create finger tracker when video stream starts (only for hand tracking)
+        if (this.trackingMode === "hand" && !this.fingerTracker) {
           console.log(
             "[FGTCamera] Creating FingerTracker3 instance (offscreen mode)"
           );
@@ -672,6 +901,16 @@ export class FGTCamera {
               showDebug: true, // Force debug mode for troubleshooting
             },
           });
+        }
+
+        // Start face tracking if in face mode
+        if (this.trackingMode === "face" && this.faceDetector) {
+          try {
+            await this.faceDetector.startTracking();
+            console.log("[FGTCamera] Face tracking started");
+          } catch (error) {
+            console.error("[FGTCamera] Failed to start face tracking:", error);
+          }
         }
 
         this.watchPunch();
@@ -753,6 +992,12 @@ export class FGTCamera {
     if (this.handDetector) {
       this.handDetector.dispose();
       this.handDetector = null;
+    }
+
+    // Clean up face detector
+    if (this.faceDetector) {
+      this.faceDetector.dispose();
+      this.faceDetector = null;
     }
   }
 }
