@@ -11,6 +11,20 @@ interface OffscreenHandDetectionResult {
   score?: number; // Confidence score
 }
 
+interface OffscreenFaceDetectionResult {
+  translation: [number, number, number]; // x, y, z position
+  rotation: [number, number, number]; // pitch, yaw, roll in radians
+  morphTargets?: number[]; // Face expression morph targets
+  isDetected: boolean;
+}
+
+// Declare Jeeliz global
+declare global {
+  interface Window {
+    JEELIZFACEEXPRESSIONS: any;
+  }
+}
+
 interface CameraSettings {
   width?: number;
   height?: number;
@@ -64,6 +78,40 @@ class OffscreenHandDetector {
                 `Offscreen: Returning ${results.length} hand detection results`
               );
               sendResponse({ success: true, data: results });
+            })
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+          return true; // Will respond asynchronously
+
+        case "start-face-tracking":
+          console.log("Offscreen: Starting face tracking");
+          ((window as any).faceDetector as OffscreenFaceDetector)
+            .startFaceTracking()
+            .then(() => sendResponse({ success: true }))
+            .catch((error) =>
+              sendResponse({ success: false, error: error.message })
+            );
+          return true; // Will respond asynchronously
+
+        case "stop-face-tracking":
+          console.log("Offscreen: Stopping face tracking");
+          (
+            (window as any).faceDetector as OffscreenFaceDetector
+          ).stopFaceTracking();
+          sendResponse({ success: true });
+          break;
+
+        case "get-face-detection":
+          console.log("Offscreen: Received face detection request");
+          ((window as any).faceDetector as OffscreenFaceDetector)
+            .detectFace()
+            .then((result) => {
+              console.log(
+                "Offscreen: Returning face detection result:",
+                result
+              );
+              sendResponse({ success: true, data: result });
             })
             .catch((error) =>
               sendResponse({ success: false, error: error.message })
@@ -302,10 +350,173 @@ class OffscreenHandDetector {
   }
 }
 
-// Initialize the offscreen hand detector
+class OffscreenFaceDetector {
+  private jeelizInstance: any = null;
+  private video: HTMLVideoElement;
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private isLoaded: boolean = false;
+  private isRunning: boolean = false;
+  private animationId: number | null = null;
+  private currentFaceData: OffscreenFaceDetectionResult | null = null;
+
+  constructor() {
+    this.video = document.getElementById("offscreen-video") as HTMLVideoElement;
+    this.canvas = document.getElementById("face-canvas") as HTMLCanvasElement;
+    this.ctx = this.canvas.getContext("2d")!;
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isLoaded) return;
+
+    try {
+      console.log("Initializing Jeeliz face tracking...");
+
+      // Wait for Jeeliz library to be available
+      if (!window.JEELIZFACEEXPRESSIONS) {
+        throw new Error("Jeeliz library not loaded");
+      }
+
+      // Setup canvas dimensions
+      this.canvas.width = this.video.videoWidth || 640;
+      this.canvas.height = this.video.videoHeight || 480;
+
+      // Get the extension URL for local files
+      const extensionUrl = chrome.runtime.getURL("");
+
+      // Initialize Jeeliz with configuration
+      const jeelizConfig = {
+        canvasId: "face-canvas",
+        NNCPath: `${extensionUrl}/models`, // Path to neural network models
+        videoSettings: {
+          videoElement: this.video,
+        },
+        callbackReady: (errCode: number, spec: any) => {
+          if (errCode) {
+            console.error("Jeeliz initialization failed:", errCode);
+            return;
+          }
+          console.log("Jeeliz face tracking initialized successfully");
+          this.isLoaded = true;
+          this.startDetectionLoop();
+        },
+        callbackTrack: (detectState: any) => {
+          this.processFaceData(detectState);
+        },
+      };
+
+      // Initialize Jeeliz
+      this.jeelizInstance = window.JEELIZFACEEXPRESSIONS.init(jeelizConfig);
+    } catch (error) {
+      console.error("Failed to initialize Jeeliz face tracking:", error);
+      throw error;
+    }
+  }
+
+  private processFaceData(detectState: any): void {
+    if (!detectState || !detectState.detected) {
+      this.currentFaceData = {
+        translation: [0, 0, 0],
+        rotation: [0, 0, 0],
+        isDetected: false,
+      };
+      return;
+    }
+
+    // Extract face position and rotation from Jeeliz detect state
+    const translation: [number, number, number] = [
+      detectState.x || 0,
+      detectState.y || 0,
+      detectState.s || 0, // Scale as z-depth approximation
+    ];
+
+    const rotation: [number, number, number] = [
+      detectState.rx || 0, // Pitch
+      detectState.ry || 0, // Yaw
+      detectState.rz || 0, // Roll
+    ];
+
+    this.currentFaceData = {
+      translation,
+      rotation,
+      morphTargets: detectState.expressions || [],
+      isDetected: true,
+    };
+  }
+
+  private startDetectionLoop(): void {
+    if (!this.isRunning) return;
+
+    const loop = () => {
+      if (this.isRunning && this.jeelizInstance) {
+        // Jeeliz handles the detection automatically via callbackTrack
+        this.animationId = requestAnimationFrame(loop);
+      }
+    };
+
+    loop();
+  }
+
+  async startFaceTracking(): Promise<void> {
+    if (this.isRunning) {
+      throw new Error("Face tracking is already running");
+    }
+
+    try {
+      // Initialize if not already done
+      await this.initialize();
+
+      this.isRunning = true;
+      console.log("Face tracking started");
+    } catch (error) {
+      console.error("Failed to start face tracking:", error);
+      throw error;
+    }
+  }
+
+  stopFaceTracking(): void {
+    if (!this.isRunning) return;
+
+    this.isRunning = false;
+
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+
+    if (this.jeelizInstance && this.jeelizInstance.destroy) {
+      this.jeelizInstance.destroy();
+      this.jeelizInstance = null;
+    }
+
+    this.currentFaceData = null;
+    console.log("Face tracking stopped");
+  }
+
+  async detectFace(): Promise<OffscreenFaceDetectionResult | null> {
+    if (!this.isLoaded || !this.isRunning) {
+      return null;
+    }
+
+    // Return the latest face data processed by Jeeliz
+    return this.currentFaceData;
+  }
+
+  dispose(): void {
+    this.stopFaceTracking();
+    this.isLoaded = false;
+  }
+}
+
+// Initialize both detectors
 const offscreenDetector = new OffscreenHandDetector();
+const faceDetector = new OffscreenFaceDetector();
+
+// Make face detector globally accessible for message handler
+(window as any).faceDetector = faceDetector;
 
 // Cleanup on window unload
 window.addEventListener("beforeunload", () => {
   offscreenDetector.dispose();
+  faceDetector.dispose();
 });

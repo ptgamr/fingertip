@@ -21,6 +21,10 @@ export default defineConfig({
           src: "./public/hand_landmarker.task",
           dest: "models/",
         },
+        {
+          src: "./src/libs/jeelizFaceExpressionsNNC.json",
+          dest: "models/",
+        },
       ],
     }),
   ],
