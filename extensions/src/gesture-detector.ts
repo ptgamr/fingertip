@@ -8,10 +8,12 @@ export interface GestureEvent {
   hand: HandType;
   confidence: number;
   position: Position;
+  isTransition: boolean; // True if this is a transition from one gesture to another
 }
 
 export class GestureDetector {
   private lastGesture: Map<HandType, GestureType> = new Map();
+  private lastStableGesture: Map<HandType, GestureType> = new Map(); // Track last stable gesture for transitions
   private gestureConfidence: Map<HandType, number> = new Map();
   private gestureFrameCount: Map<HandType, number> = new Map();
   private readonly CONFIDENCE_THRESHOLD = 0.7;
@@ -20,6 +22,8 @@ export class GestureDetector {
   constructor() {
     this.lastGesture.set("left", "none");
     this.lastGesture.set("right", "none");
+    this.lastStableGesture.set("left", "none");
+    this.lastStableGesture.set("right", "none");
     this.gestureConfidence.set("left", 0);
     this.gestureConfidence.set("right", 0);
     this.gestureFrameCount.set("left", 0);
@@ -48,6 +52,7 @@ export class GestureDetector {
     // Update gesture tracking
     const currentGesture = this.lastGesture.get(hand) || "none";
     const currentFrameCount = this.gestureFrameCount.get(hand) || 0;
+    const lastStableGesture = this.lastStableGesture.get(hand) || "none";
 
     if (gesture === currentGesture) {
       // Same gesture, increment frame count
@@ -67,11 +72,21 @@ export class GestureDetector {
       confidence >= this.CONFIDENCE_THRESHOLD &&
       frameCount >= this.FRAME_THRESHOLD
     ) {
+      // Check if this is a transition from a different stable gesture
+      const isTransition =
+        gesture !== lastStableGesture && frameCount === this.FRAME_THRESHOLD;
+
+      // Update the last stable gesture when we reach the threshold
+      if (frameCount === this.FRAME_THRESHOLD) {
+        this.lastStableGesture.set(hand, gesture);
+      }
+
       return {
         type: gesture,
         hand,
         confidence,
         position,
+        isTransition,
       };
     }
 
@@ -191,6 +206,7 @@ export class GestureDetector {
    */
   resetHand(hand: HandType): void {
     this.lastGesture.set(hand, "none");
+    this.lastStableGesture.set(hand, "none");
     this.gestureConfidence.set(hand, 0);
     this.gestureFrameCount.set(hand, 0);
   }

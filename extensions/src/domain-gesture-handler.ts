@@ -75,11 +75,16 @@ export class DomainGestureHandler {
    * Handle detected gesture events
    */
   private handleGestureEvent(event: GestureEvent): void {
+    // Only handle transition events to prevent continuous triggering
+    if (!event.isTransition) {
+      return;
+    }
+
     const gestureKey = `${event.hand}-${event.type}`;
     const now = Date.now();
     const lastTime = this.lastGestureTime.get(gestureKey) || 0;
 
-    // Check cooldown
+    // Check cooldown (reduced since we're only handling transitions)
     if (now - lastTime < this.GESTURE_COOLDOWN) {
       return;
     }
@@ -87,7 +92,7 @@ export class DomainGestureHandler {
     this.lastGestureTime.set(gestureKey, now);
 
     console.log(
-      `[DomainGestureHandler] Gesture detected: ${event.type} (${event.hand} hand, confidence: ${event.confidence.toFixed(2)})`
+      `[DomainGestureHandler] Gesture transition detected: ${event.type} (${event.hand} hand, confidence: ${event.confidence.toFixed(2)})`
     );
 
     // Handle domain-specific gestures
