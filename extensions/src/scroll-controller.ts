@@ -144,7 +144,13 @@ export class ScrollController {
       elementId: element?.id,
     });
 
-    state.target = this.findScrollableParent(element);
+    let scrollContainer = this.findScrollableParent(element);
+    if ((scrollContainer as Element).tagName === "BODY") {
+      // If no scrollable parent found, default to window
+      scrollContainer = window;
+    }
+
+    state.target = scrollContainer;
     this.logInfo(
       `Found scroll target: ${
         state.target === window ? "window" : (state.target as Element)?.tagName

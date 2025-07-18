@@ -1,7 +1,12 @@
 // Gesture detection system for recognizing specific hand gestures
-import { HandLandmarks, HandType, Position } from "./finger-tracker-types";
+import {
+  HandLandmark,
+  HandLandmarks,
+  HandType,
+  Position,
+} from "./finger-tracker-types";
 
-export type GestureType = "index-finger-up" | "none";
+export type GestureType = "index-finger-up" | "palm-raise" | "none";
 
 export interface GestureEvent {
   type: GestureType;
@@ -42,11 +47,19 @@ export class GestureDetector {
     const gesture = this.classifyGesture(landmarks);
     const confidence = this.calculateConfidence(landmarks, gesture);
 
-    // Get index finger tip position for the event
-    const indexTip = landmarks[8];
+    // Get position based on gesture type
+    let referencePoint: HandLandmark;
+    if (gesture === "palm-raise") {
+      // Use palm center (middle finger base) for palm raise gestures
+      referencePoint = landmarks[9];
+    } else {
+      // Use index finger tip for other gestures
+      referencePoint = landmarks[8];
+    }
+
     const position: Position = {
-      x: indexTip.x * videoWidth,
-      y: indexTip.y * videoHeight,
+      x: referencePoint.x * videoWidth,
+      y: referencePoint.y * videoHeight,
     };
 
     // Update gesture tracking
@@ -97,6 +110,11 @@ export class GestureDetector {
    * Classify the gesture based on hand landmarks
    */
   private classifyGesture(landmarks: HandLandmarks): GestureType {
+    // Check for palm raise gesture first (more specific)
+    if (this.isPalmRaised(landmarks)) {
+      return "palm-raise";
+    }
+
     // Check for index finger up gesture
     if (this.isIndexFingerUp(landmarks)) {
       return "index-finger-up";
@@ -153,6 +171,61 @@ export class GestureDetector {
   }
 
   /**
+   * Check if palm is raised (all fingers extended and spread)
+   */
+  private isPalmRaised(landmarks: HandLandmarks): boolean {
+    // Fingertip landmarks: thumb(4), index(8), middle(12), ring(16), pinky(20)
+    // Base landmarks: thumb(2), index(5), middle(9), ring(13), pinky(17)
+    // Palm landmarks: wrist(0), thumb_base(1), index_base(5), middle_base(9), ring_base(13), pinky_base(17)
+
+    const thumbTip = landmarks[4];
+    const thumbBase = landmarks[2];
+    const indexTip = landmarks[8];
+    const indexBase = landmarks[5];
+    const middleTip = landmarks[12];
+    const middleBase = landmarks[9];
+    const ringTip = landmarks[16];
+    const ringBase = landmarks[13];
+    const pinkyTip = landmarks[20];
+    const pinkyBase = landmarks[17];
+
+    // Check if all fingertips are above their respective bases
+    const thumbExtended = thumbTip.y < thumbBase.y - 0.03;
+    const indexExtended = indexTip.y < indexBase.y - 0.05;
+    const middleExtended = middleTip.y < middleBase.y - 0.05;
+    const ringExtended = ringTip.y < ringBase.y - 0.05;
+    const pinkyExtended = pinkyTip.y < pinkyBase.y - 0.05;
+
+    // All fingers must be extended
+    const allFingersExtended =
+      thumbExtended &&
+      indexExtended &&
+      middleExtended &&
+      ringExtended &&
+      pinkyExtended;
+
+    if (!allFingersExtended) {
+      return false;
+    }
+
+    // Check finger spread - measure horizontal distances between fingertips
+    const indexMiddleDistance = Math.abs(indexTip.x - middleTip.x);
+    const middleRingDistance = Math.abs(middleTip.x - ringTip.x);
+    const ringPinkyDistance = Math.abs(ringTip.x - pinkyTip.x);
+    const thumbIndexDistance = Math.abs(thumbTip.x - indexTip.x);
+
+    // Fingers should be reasonably spread (minimum distances)
+    const minSpreadDistance = 0.03; // Adjust based on testing
+    const fingersSpread =
+      indexMiddleDistance > minSpreadDistance &&
+      middleRingDistance > minSpreadDistance &&
+      ringPinkyDistance > minSpreadDistance &&
+      thumbIndexDistance > minSpreadDistance;
+
+    return fingersSpread;
+  }
+
+  /**
    * Calculate confidence score for the detected gesture
    */
   private calculateConfidence(
@@ -165,6 +238,10 @@ export class GestureDetector {
 
     if (gesture === "index-finger-up") {
       return this.calculateIndexFingerUpConfidence(landmarks);
+    }
+
+    if (gesture === "palm-raise") {
+      return this.calculatePalmRaiseConfidence(landmarks);
     }
 
     return 0;
@@ -197,6 +274,62 @@ export class GestureDetector {
     confidence += Math.min(0.2, middleFolded * 10);
     confidence += Math.min(0.2, ringFolded * 10);
     confidence += Math.min(0.2, pinkyFolded * 10);
+
+    return Math.min(1.0, confidence);
+  }
+
+  /**
+   * Calculate confidence for palm raise gesture
+   */
+  private calculatePalmRaiseConfidence(landmarks: HandLandmarks): number {
+    const thumbTip = landmarks[4];
+    const thumbBase = landmarks[2];
+    const indexTip = landmarks[8];
+    const indexBase = landmarks[5];
+    const middleTip = landmarks[12];
+    const middleBase = landmarks[9];
+    const ringTip = landmarks[16];
+    const ringBase = landmarks[13];
+    const pinkyTip = landmarks[20];
+    const pinkyBase = landmarks[17];
+
+    let confidence = 0;
+
+    // Finger extension confidence (0-0.6 total, 0.12 per finger)
+    const thumbExtension = Math.max(0, thumbBase.y - thumbTip.y);
+    const indexExtension = Math.max(0, indexBase.y - indexTip.y);
+    const middleExtension = Math.max(0, middleBase.y - middleTip.y);
+    const ringExtension = Math.max(0, ringBase.y - ringTip.y);
+    const pinkyExtension = Math.max(0, pinkyBase.y - pinkyTip.y);
+
+    confidence += Math.min(0.12, thumbExtension * 2.4);
+    confidence += Math.min(0.12, indexExtension * 2.4);
+    confidence += Math.min(0.12, middleExtension * 2.4);
+    confidence += Math.min(0.12, ringExtension * 2.4);
+    confidence += Math.min(0.12, pinkyExtension * 2.4);
+
+    // Finger spread confidence (0-0.2 total)
+    const indexMiddleDistance = Math.abs(indexTip.x - middleTip.x);
+    const middleRingDistance = Math.abs(middleTip.x - ringTip.x);
+    const ringPinkyDistance = Math.abs(ringTip.x - pinkyTip.x);
+    const thumbIndexDistance = Math.abs(thumbTip.x - indexTip.x);
+
+    const avgSpread =
+      (indexMiddleDistance +
+        middleRingDistance +
+        ringPinkyDistance +
+        thumbIndexDistance) /
+      4;
+    confidence += Math.min(0.2, avgSpread * 6.67); // Scale to reach 0.2 at spread of 0.03
+
+    // Palm orientation confidence (0-0.2 total)
+    // Check if palm is facing forward by examining wrist to middle finger base alignment
+    const wrist = landmarks[0];
+    const palmCenter = landmarks[9]; // Middle finger base as palm center reference
+
+    // Palm should be relatively upright (small x-difference between wrist and palm center)
+    const palmAlignment = 1 - Math.min(1, Math.abs(wrist.x - palmCenter.x) * 5);
+    confidence += palmAlignment * 0.2;
 
     return Math.min(1.0, confidence);
   }

@@ -113,6 +113,11 @@ export class DomainGestureHandler {
         "[DomainGestureHandler] Index finger up detected on BigBB domain - triggering button click"
       );
       this.triggerBigBBButtonClick(event);
+    } else if (event.type === "palm-raise") {
+      console.log(
+        "[DomainGestureHandler] Palm raise detected on BigBB domain - triggering palm raise action"
+      );
+      this.triggerPalmRaiseAction(event);
     }
   }
 
@@ -156,6 +161,99 @@ export class DomainGestureHandler {
       // Still show visual feedback even if no button was found
       this.showGestureVisualFeedback(event.position);
     }
+  }
+
+  /**
+   * Trigger palm raise action for BigBB domain
+   * This is a placeholder action that provides visual feedback and logging
+   */
+  private triggerPalmRaiseAction(event: GestureEvent): void {
+    console.log(
+      `[DomainGestureHandler] Palm raise action triggered at position (${event.position.x}, ${event.position.y})`
+    );
+    // Example: Find and click a specific button
+    // You can customize this selector based on the actual button you want to click
+    const buttonSelectors = [
+      'button[data-test="raiseHandBtn"]',
+      'button[data-test="lowerHandBtn"]',
+    ];
+
+    let buttonClicked = false;
+
+    for (const selector of buttonSelectors) {
+      const button = document.querySelector(selector) as HTMLElement;
+      if (
+        button &&
+        this.isElementVisible(button) &&
+        !this.isElementDisabled(button)
+      ) {
+        // Show distinctive visual feedback for palm raise (different color from index finger)
+        this.showPalmRaiseVisualFeedback(event.position);
+
+        console.log(
+          "[DomainGestureHandler] Palm raise placeholder action executed"
+        );
+
+        // Simulate a click event
+        button.click();
+        buttonClicked = true;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Show visual feedback specifically for palm raise gesture
+   */
+  private showPalmRaiseVisualFeedback(position: {
+    x: number;
+    y: number;
+  }): void {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = `
+      position: fixed;
+      left: ${position.x - 30}px;
+      top: ${position.y - 30}px;
+      width: 60px;
+      height: 60px;
+      background: radial-gradient(circle, rgba(255,165,0,0.8) 0%, rgba(255,165,0,0.3) 70%, transparent 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10000;
+      animation: palmRaiseRipple 0.8s ease-out forwards;
+    `;
+
+    // Add CSS animation for palm raise (different from regular gesture)
+    if (!document.getElementById("palm-raise-feedback-styles")) {
+      const style = document.createElement("style");
+      style.id = "palm-raise-feedback-styles";
+      style.textContent = `
+        @keyframes palmRaiseRipple {
+          0% {
+            transform: scale(0.3);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(2.5);
+            opacity: 0;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(feedback);
+
+    // Remove feedback after animation
+    setTimeout(() => {
+      if (feedback.parentNode) {
+        feedback.parentNode.removeChild(feedback);
+      }
+    }, 800);
   }
 
   /**
