@@ -249,7 +249,7 @@ export class DomainGestureHandler {
       border-radius: 50%;
       pointer-events: none;
       z-index: 10000;
-      animation: palmRaiseRipple 0.8s ease-out forwards;
+      animation: palmRaiseRipple 2s ease-out forwards;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -272,7 +272,7 @@ export class DomainGestureHandler {
         text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
         white-space: nowrap;
-        animation: palmTextFadeInBounce 0.8s ease-out forwards;
+        animation: palmTextFadeInBounce 2s ease-out forwards;
         transform: scale(0.7) translateY(5px);
         opacity: 0;
       `;
@@ -372,15 +372,15 @@ export class DomainGestureHandler {
     const feedback = document.createElement("div");
     feedback.style.cssText = `
       position: fixed;
-      left: ${position.x - 40}px;
-      top: ${position.y - 40}px;
+      left: ${position.x - 80}px;
+      top: ${position.y - 120}px;
       width: 80px;
       height: 80px;
       background: radial-gradient(circle, rgba(0,255,0,0.8) 0%, rgba(0,255,0,0.2) 70%, transparent 100%);
       border-radius: 50%;
       pointer-events: none;
       z-index: 10000;
-      animation: gestureRipple 0.6s ease-out forwards;
+      animation: gestureRipple 2s ease-out forwards;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -403,7 +403,7 @@ export class DomainGestureHandler {
         text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2);
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
         white-space: nowrap;
-        animation: textFadeInScale 0.6s ease-out forwards;
+        animation: textFadeInScale 2s ease-out forwards;
         transform: scale(0.8);
         opacity: 0;
       `;
