@@ -53,7 +53,8 @@ export class DomainGestureHandler {
     hand: HandType,
     landmarks: HandLandmarks,
     videoWidth: number,
-    videoHeight: number
+    videoHeight: number,
+    isMirrored: boolean = false
   ): void {
     if (!this.isEnabled) {
       return;
@@ -63,7 +64,8 @@ export class DomainGestureHandler {
       hand,
       landmarks,
       videoWidth,
-      videoHeight
+      videoHeight,
+      isMirrored
     );
 
     if (gestureEvent) {

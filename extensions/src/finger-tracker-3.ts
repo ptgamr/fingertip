@@ -107,7 +107,8 @@ export class FingerTracker3 {
         hand,
         landmarks,
         videoWidth,
-        videoHeight
+        videoHeight,
+        isMirrored
       );
 
       this.visualFeedback.updatePosition(hand, screenPos);

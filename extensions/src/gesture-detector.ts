@@ -42,7 +42,8 @@ export class GestureDetector {
     hand: HandType,
     landmarks: HandLandmarks,
     videoWidth: number,
-    videoHeight: number
+    videoHeight: number,
+    isMirrored: boolean = false
   ): GestureEvent | null {
     const gesture = this.classifyGesture(landmarks);
     const confidence = this.calculateConfidence(landmarks, gesture);
@@ -57,10 +58,12 @@ export class GestureDetector {
       referencePoint = landmarks[8];
     }
 
-    const position: Position = {
-      x: referencePoint.x * videoWidth,
-      y: referencePoint.y * videoHeight,
-    };
+    // Convert landmark position to screen coordinates (same logic as landmarkToScreen in finger-tracker-3.ts)
+    const position: Position = this.landmarkToScreen(
+      referencePoint,
+      isMirrored,
+      hand
+    );
 
     // Update gesture tracking
     const currentGesture = this.lastGesture.get(hand) || "none";
@@ -356,5 +359,30 @@ export class GestureDetector {
    */
   getCurrentConfidence(hand: HandType): number {
     return this.gestureConfidence.get(hand) || 0;
+  }
+
+  /**
+   * Convert landmark position to screen coordinates
+   * This matches the logic in finger-tracker-3.ts landmarkToScreen method
+   */
+  private landmarkToScreen(
+    landmark: { x: number; y: number },
+    isMirrored: boolean,
+    hand: HandType
+  ): Position {
+    // Normalize coordinates (MediaPipe provides 0-1 normalized coords)
+    let normalizedX = landmark.x;
+    let normalizedY = landmark.y;
+
+    // Handle mirroring
+    if (isMirrored) {
+      normalizedX = 1 - normalizedX;
+    }
+
+    // Convert to screen coordinates
+    const screenX = normalizedX * window.innerWidth;
+    const screenY = normalizedY * window.innerHeight;
+
+    return { x: screenX, y: screenY };
   }
 }
