@@ -66,6 +66,9 @@ export class DomainGestureHandler {
     isMirrored: boolean = false
   ): void {
     if (!this.isEnabled) {
+      console.log(
+        `[DomainGestureHandler] Handler disabled for domain: ${this.currentDomain}`
+      );
       return;
     }
 
@@ -77,7 +80,21 @@ export class DomainGestureHandler {
       isMirrored
     );
 
+    // Debug: Log current gesture state every few frames
+    const currentGesture = this.gestureDetector.getCurrentGesture(hand);
+    const currentConfidence = this.gestureDetector.getCurrentConfidence(hand);
+
+    // Log grab gesture attempts more frequently for debugging
+    if (currentGesture === "grab" || currentConfidence > 0.3) {
+      console.log(
+        `[DomainGestureHandler] Gesture state: ${currentGesture} (${hand} hand, confidence: ${currentConfidence.toFixed(2)})`
+      );
+    }
+
     if (gestureEvent) {
+      console.log(
+        `[DomainGestureHandler] Gesture event detected: ${gestureEvent.type} (${gestureEvent.hand} hand, confidence: ${gestureEvent.confidence.toFixed(2)}, isTransition: ${gestureEvent.isTransition})`
+      );
       this.handleGestureEvent(gestureEvent);
     }
   }
@@ -91,6 +108,13 @@ export class DomainGestureHandler {
       this.currentDomain === "redmine.catalyst.net.nz" ||
       this.currentDomain.endsWith(".redmine.catalyst.net.nz")
     ) {
+      // Show visual feedback for grab gestures on all domains
+      if (event.type === "grab") {
+        console.log(
+          `[DomainGestureHandler] Grab gesture started: ${event.type} (${event.hand} hand, confidence: ${event.confidence.toFixed(2)})`
+        );
+        this.showGrabGestureVisualFeedback(event.position, event.hand);
+      }
       this.handleRedmineGestureTransitions(event);
       return;
     }
@@ -957,6 +981,117 @@ export class DomainGestureHandler {
         feedback.parentNode.removeChild(feedback);
       }
     }, 5000);
+  }
+
+  /**
+   * Show visual feedback for grab gesture reference point
+   */
+  private showGrabGestureVisualFeedback(
+    position: { x: number; y: number },
+    hand: HandType
+  ): void {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = `
+      position: fixed;
+      left: ${position.x - 25}px;
+      top: ${position.y - 25}px;
+      width: 50px;
+      height: 50px;
+      background: radial-gradient(circle, rgba(255,0,128,0.9) 0%, rgba(255,0,128,0.4) 70%, transparent 100%);
+      border: 3px solid rgba(255,255,255,0.8);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10000;
+      animation: grabGestureRipple 2s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    // Add hand indicator text
+    const textElement = document.createElement("div");
+    textElement.textContent = `${hand.toUpperCase()} GRAB`;
+    textElement.style.cssText = `
+      color: #ffffff;
+      background: rgba(255, 0, 128, 0.95);
+      padding: 3px 6px;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      white-space: nowrap;
+      animation: grabTextPulse 2s ease-out forwards;
+      transform: scale(0.8);
+      opacity: 0;
+    `;
+    feedback.appendChild(textElement);
+
+    // Add crosshair to show exact reference point
+    const crosshair = document.createElement("div");
+    crosshair.style.cssText = `
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      background: rgba(255, 0, 128, 0.3);
+    `;
+    feedback.appendChild(crosshair);
+
+    // Add CSS animation for grab gesture
+    if (!document.getElementById("grab-gesture-feedback-styles")) {
+      const style = document.createElement("style");
+      style.id = "grab-gesture-feedback-styles";
+      style.textContent = `
+        @keyframes grabGestureRipple {
+          0% {
+            transform: scale(0.4);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.3);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(2.5);
+            opacity: 0;
+          }
+        }
+        @keyframes grabTextPulse {
+          0% {
+            transform: scale(0.6);
+            opacity: 0;
+          }
+          30% {
+            transform: scale(1.2);
+            opacity: 1;
+          }
+          70% {
+            transform: scale(0.9);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(feedback);
+
+    // Remove feedback after animation
+    setTimeout(() => {
+      if (feedback.parentNode) {
+        feedback.parentNode.removeChild(feedback);
+      }
+    }, 3000);
   }
 
   /**

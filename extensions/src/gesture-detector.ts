@@ -26,8 +26,8 @@ export class GestureDetector {
   private lastStableGesture: Map<HandType, GestureType> = new Map(); // Track last stable gesture for transitions
   private gestureConfidence: Map<HandType, number> = new Map();
   private gestureFrameCount: Map<HandType, number> = new Map();
-  private readonly CONFIDENCE_THRESHOLD = 0.7;
-  private readonly FRAME_THRESHOLD = 5; // Require gesture to be stable for 5 frames
+  private readonly CONFIDENCE_THRESHOLD = 0.5; // Lowered from 0.7 to 0.5
+  private readonly FRAME_THRESHOLD = 3; // Reduced from 5 to 3 frames
 
   constructor() {
     this.lastGesture.set("left", "none");
@@ -57,7 +57,7 @@ export class GestureDetector {
     let referencePoint: HandLandmark;
     if (gesture === "grab") {
       // Use palm center (middle finger base) for grab gestures
-      referencePoint = landmarks[9];
+      referencePoint = landmarks[8];
     } else if (gesture === "palm-raise") {
       // Use palm center (middle finger base) for palm raise gestures
       referencePoint = landmarks[9];
@@ -125,7 +125,9 @@ export class GestureDetector {
    */
   private classifyGesture(landmarks: HandLandmarks): GestureType {
     // Check for grab gesture first (closed fist)
-    if (this.isGrabGesture(landmarks)) {
+    const isGrab = this.isGrabGesture(landmarks);
+    if (isGrab) {
+      console.log("[GestureDetector] Grab gesture detected!");
       return "grab";
     }
 
@@ -314,9 +316,9 @@ export class GestureDetector {
     const pinkyTip = landmarks[20];
     const pinkyBase = landmarks[17];
 
-    // For grab gesture, all fingertips should be below or at same level as their bases (folded/curled)
-    // Use a small threshold to account for noise and natural hand curvature
-    const foldThreshold = 0.02; // Allow slight extension for natural curl
+    // For grab gesture, most fingertips should be below or at same level as their bases (folded/curled)
+    // Use a more lenient threshold to account for noise and natural hand curvature
+    const foldThreshold = 0.05; // Increased from 0.02 to 0.05 for more lenient detection
 
     const thumbFolded = thumbTip.y >= thumbBase.y - foldThreshold;
     const indexFolded = indexTip.y >= indexBase.y - foldThreshold;
@@ -324,28 +326,58 @@ export class GestureDetector {
     const ringFolded = ringTip.y >= ringBase.y - foldThreshold;
     const pinkyFolded = pinkyTip.y >= pinkyBase.y - foldThreshold;
 
-    // All fingers must be folded for grab gesture
-    const allFingersFolded =
-      thumbFolded && indexFolded && middleFolded && ringFolded && pinkyFolded;
+    // At least 4 out of 5 fingers must be folded for grab gesture (more lenient)
+    const foldedCount = [
+      thumbFolded,
+      indexFolded,
+      middleFolded,
+      ringFolded,
+      pinkyFolded,
+    ].filter(Boolean).length;
+    const mostFingersFolded = foldedCount >= 4;
 
-    if (!allFingersFolded) {
+    // Debug logging for grab gesture detection
+    const debugInfo = {
+      thumbFolded: thumbFolded,
+      indexFolded: indexFolded,
+      middleFolded: middleFolded,
+      ringFolded: ringFolded,
+      pinkyFolded: pinkyFolded,
+      foldedCount: foldedCount,
+      mostFingersFolded: mostFingersFolded,
+    };
+
+    if (foldedCount >= 3) {
+      // Log when we're getting close
+      console.log("[GestureDetector] Grab detection debug:", debugInfo);
+    }
+
+    if (!mostFingersFolded) {
       return false;
     }
 
-    // Additional check: fingers should be close together (not spread)
+    // Additional check: fingers should be reasonably close together (not spread wide)
     // Measure horizontal distances between fingertips - they should be close
     const indexMiddleDistance = Math.abs(indexTip.x - middleTip.x);
     const middleRingDistance = Math.abs(middleTip.x - ringTip.x);
     const ringPinkyDistance = Math.abs(ringTip.x - pinkyTip.x);
 
-    // For a closed fist, fingers should be close together
-    const maxCloseDistance = 0.05; // Maximum distance for "close together"
-    const fingersClose =
-      indexMiddleDistance < maxCloseDistance &&
-      middleRingDistance < maxCloseDistance &&
-      ringPinkyDistance < maxCloseDistance;
+    // For a closed fist, fingers should be reasonably close together (more lenient)
+    const maxCloseDistance = 0.08; // Increased from 0.05 to 0.08 for more lenient detection
+    const avgDistance =
+      (indexMiddleDistance + middleRingDistance + ringPinkyDistance) / 3;
+    const fingersReasonablyClose = avgDistance < maxCloseDistance;
 
-    return fingersClose;
+    console.log("[GestureDetector] Grab closeness check:", {
+      indexMiddleDistance: indexMiddleDistance.toFixed(3),
+      middleRingDistance: middleRingDistance.toFixed(3),
+      ringPinkyDistance: ringPinkyDistance.toFixed(3),
+      avgDistance: avgDistance.toFixed(3),
+      maxCloseDistance: maxCloseDistance,
+      fingersReasonablyClose: fingersReasonablyClose,
+    });
+
+    return fingersReasonablyClose;
   }
 
   /**
