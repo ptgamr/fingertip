@@ -134,6 +134,7 @@ export class DomainGestureHandler {
     ];
 
     let buttonClicked = false;
+    let actionText = "Mute/Unmute";
 
     for (const selector of buttonSelectors) {
       const button = document.querySelector(selector) as HTMLElement;
@@ -146,8 +147,15 @@ export class DomainGestureHandler {
           `[DomainGestureHandler] Clicking button with selector: ${selector}`
         );
 
-        // Create a visual feedback at gesture position
-        this.showGestureVisualFeedback(event.position);
+        // Determine action text based on which button is visible
+        if (selector === 'button[data-test="unmuteMicButton"]') {
+          actionText = "Unmute";
+        } else if (selector === 'button[data-test="muteMicButton"]') {
+          actionText = "Mute";
+        }
+
+        // Create a visual feedback at gesture position with action text
+        this.showMuteUnmuteVisualFeedback(event.position, actionText);
 
         // Simulate a click event
         button.click();
@@ -159,7 +167,7 @@ export class DomainGestureHandler {
     if (!buttonClicked) {
       console.log("[DomainGestureHandler] No suitable button found to click");
       // Still show visual feedback even if no button was found
-      this.showGestureVisualFeedback(event.position);
+      this.showMuteUnmuteVisualFeedback(event.position, actionText);
     }
   }
 
@@ -179,6 +187,7 @@ export class DomainGestureHandler {
     ];
 
     let buttonClicked = false;
+    let actionText = "Raise/Lower Hand";
 
     for (const selector of buttonSelectors) {
       const button = document.querySelector(selector) as HTMLElement;
@@ -187,8 +196,15 @@ export class DomainGestureHandler {
         this.isElementVisible(button) &&
         !this.isElementDisabled(button)
       ) {
-        // Show distinctive visual feedback for palm raise (different color from index finger)
-        this.showPalmRaiseVisualFeedback(event.position);
+        // Determine action text based on which button is visible
+        if (selector === 'button[data-test="raiseHandBtn"]') {
+          actionText = "Raise Hand";
+        } else if (selector === 'button[data-test="lowerHandBtn"]') {
+          actionText = "Lower Hand";
+        }
+
+        // Show distinctive visual feedback for palm raise with action text
+        this.showPalmRaiseVisualFeedback(event.position, actionText);
 
         console.log(
           "[DomainGestureHandler] Palm raise placeholder action executed"
@@ -200,28 +216,66 @@ export class DomainGestureHandler {
         break;
       }
     }
+
+    if (!buttonClicked) {
+      console.log(
+        "[DomainGestureHandler] No suitable hand button found to click"
+      );
+      // Still show visual feedback even if no button was found
+      this.showPalmRaiseVisualFeedback(event.position, actionText);
+    }
   }
 
   /**
    * Show visual feedback specifically for palm raise gesture
    */
-  private showPalmRaiseVisualFeedback(position: {
-    x: number;
-    y: number;
-  }): void {
+  private showPalmRaiseVisualFeedback(
+    position: {
+      x: number;
+      y: number;
+    },
+    actionText?: string
+  ): void {
     const feedback = document.createElement("div");
     feedback.style.cssText = `
       position: fixed;
-      left: ${position.x - 30}px;
-      top: ${position.y - 30}px;
-      width: 60px;
-      height: 60px;
+      left: ${position.x - 45}px;
+      top: ${position.y - 45}px;
+      width: 90px;
+      height: 90px;
       background: radial-gradient(circle, rgba(255,165,0,0.8) 0%, rgba(255,165,0,0.3) 70%, transparent 100%);
       border-radius: 50%;
       pointer-events: none;
       z-index: 10000;
       animation: palmRaiseRipple 0.8s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     `;
+
+    // Add action text if provided
+    if (actionText) {
+      const textElement = document.createElement("div");
+      textElement.textContent = actionText;
+      textElement.style.cssText = `
+        color: #1a1a1a;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 4px 8px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+        white-space: nowrap;
+        animation: palmTextFadeInBounce 0.8s ease-out forwards;
+        transform: scale(0.7) translateY(5px);
+        opacity: 0;
+      `;
+      feedback.appendChild(textElement);
+    }
 
     // Add CSS animation for palm raise (different from regular gesture)
     if (!document.getElementById("palm-raise-feedback-styles")) {
@@ -242,18 +296,36 @@ export class DomainGestureHandler {
             opacity: 0;
           }
         }
+        @keyframes palmTextFadeInBounce {
+          0% {
+            transform: scale(0.6) translateY(8px);
+            opacity: 0;
+          }
+          30% {
+            transform: scale(1.15) translateY(-2px);
+            opacity: 1;
+          }
+          60% {
+            transform: scale(0.95) translateY(1px);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1) translateY(0px);
+            opacity: 1;
+          }
+        }
       `;
       document.head.appendChild(style);
     }
 
     document.body.appendChild(feedback);
 
-    // Remove feedback after animation
+    // Remove feedback after animation (extended duration for better visibility)
     setTimeout(() => {
       if (feedback.parentNode) {
         feedback.parentNode.removeChild(feedback);
       }
-    }, 800);
+    }, 5000);
   }
 
   /**
@@ -291,20 +363,50 @@ export class DomainGestureHandler {
   /**
    * Show visual feedback when gesture is triggered
    */
-  private showGestureVisualFeedback(position: { x: number; y: number }): void {
+  private showMuteUnmuteVisualFeedback(
+    position: { x: number; y: number },
+    actionText?: string
+  ): void {
     const feedback = document.createElement("div");
     feedback.style.cssText = `
       position: fixed;
-      left: ${position.x - 25}px;
-      top: ${position.y - 25}px;
-      width: 50px;
-      height: 50px;
+      left: ${position.x - 40}px;
+      top: ${position.y - 40}px;
+      width: 80px;
+      height: 80px;
       background: radial-gradient(circle, rgba(0,255,0,0.8) 0%, rgba(0,255,0,0.2) 70%, transparent 100%);
       border-radius: 50%;
       pointer-events: none;
       z-index: 10000;
       animation: gestureRipple 0.6s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     `;
+
+    // Add action text if provided
+    if (actionText) {
+      const textElement = document.createElement("div");
+      textElement.textContent = actionText;
+      textElement.style.cssText = `
+        color: #1a1a1a;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 4px 10px;
+        border-radius: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8), 0 -1px 1px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+        white-space: nowrap;
+        animation: textFadeInScale 0.6s ease-out forwards;
+        transform: scale(0.8);
+        opacity: 0;
+      `;
+      feedback.appendChild(textElement);
+    }
 
     // Add CSS animation
     if (!document.getElementById("gesture-feedback-styles")) {
@@ -321,18 +423,32 @@ export class DomainGestureHandler {
             opacity: 0;
           }
         }
+        @keyframes textFadeInScale {
+          0% {
+            transform: scale(0.6);
+            opacity: 0;
+          }
+          20% {
+            transform: scale(1.1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
       `;
       document.head.appendChild(style);
     }
 
     document.body.appendChild(feedback);
 
-    // Remove feedback after animation
+    // Remove feedback after animation (extended duration for better visibility)
     setTimeout(() => {
       if (feedback.parentNode) {
         feedback.parentNode.removeChild(feedback);
       }
-    }, 600);
+    }, 5000);
   }
 
   /**
