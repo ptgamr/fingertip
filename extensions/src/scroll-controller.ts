@@ -115,12 +115,12 @@ export class ScrollController {
    * Setup event listeners for pinch events
    */
   private setupEventListeners(): void {
-    this.pinchDetector.on("pinch-start", this.handlePinchStart.bind(this));
-    this.pinchDetector.on("pinch-held", this.handlePinchHeld.bind(this));
-    this.pinchDetector.on(
-      "pinch-released",
-      this.handlePinchReleased.bind(this)
-    );
+    // this.pinchDetector.on("pinch-start", this.handlePinchStart.bind(this));
+    // this.pinchDetector.on("pinch-held", this.handlePinchHeld.bind(this));
+    // this.pinchDetector.on(
+    //   "pinch-released",
+    //   this.handlePinchReleased.bind(this)
+    // );
   }
 
   /**

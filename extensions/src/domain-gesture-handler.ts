@@ -16,6 +16,12 @@ export class DomainGestureHandler {
   private lastGestureTime: Map<string, number> = new Map();
   private readonly GESTURE_COOLDOWN = 1000; // 1 second cooldown between gestures
 
+  // Drag-and-drop state management
+  private isDragging: boolean = false;
+  private dragElement: HTMLElement | null = null;
+  private dragStartPosition: { x: number; y: number } | null = null;
+  private dragOffset: { x: number; y: number } | null = null;
+
   constructor() {
     this.gestureDetector = new GestureDetector();
     this.currentDomain = window.location.hostname;
@@ -38,7 +44,10 @@ export class DomainGestureHandler {
    * Check if domain is supported for gesture handling
    */
   private isSupportedDomain(domain: string): boolean {
-    const supportedDomains = ["bigbb.catalyst.net.nz"];
+    const supportedDomains = [
+      "bigbb.catalyst.net.nz",
+      "redmine.catalyst.net.nz",
+    ];
 
     return supportedDomains.some(
       (supportedDomain) =>
@@ -77,7 +86,16 @@ export class DomainGestureHandler {
    * Handle detected gesture events
    */
   private handleGestureEvent(event: GestureEvent): void {
-    // Only handle transition events to prevent continuous triggering
+    // Handle grab gesture transitions differently for drag-and-drop
+    if (
+      this.currentDomain === "redmine.catalyst.net.nz" ||
+      this.currentDomain.endsWith(".redmine.catalyst.net.nz")
+    ) {
+      this.handleRedmineGestureTransitions(event);
+      return;
+    }
+
+    // Only handle transition events to prevent continuous triggering for other domains
     if (!event.isTransition) {
       return;
     }
@@ -103,6 +121,38 @@ export class DomainGestureHandler {
       this.currentDomain.endsWith(".bigbb.catalyst.net.nz")
     ) {
       this.handleBigBBGestures(event);
+    }
+  }
+
+  /**
+   * Handle gesture transitions specifically for Redmine drag-and-drop
+   */
+  private handleRedmineGestureTransitions(event: GestureEvent): void {
+    const gestureKey = `${event.hand}-${event.type}`;
+    const now = Date.now();
+    const lastTime = this.lastGestureTime.get(gestureKey) || 0;
+
+    // For grab gestures, handle both transitions and continuous updates
+    if (event.type === "grab") {
+      if (event.isTransition) {
+        // New grab gesture started
+        if (now - lastTime >= this.GESTURE_COOLDOWN) {
+          this.lastGestureTime.set(gestureKey, now);
+          console.log(
+            `[DomainGestureHandler] Grab gesture started: ${event.type} (${event.hand} hand, confidence: ${event.confidence.toFixed(2)})`
+          );
+          this.handleRedmineGestures(event);
+        }
+      } else if (this.isDragging) {
+        // Continue dragging - update position
+        this.updateDrag(event.position);
+      }
+    } else if (this.isDragging && event.isTransition) {
+      // Grab gesture ended, drop the element
+      console.log(
+        `[DomainGestureHandler] Grab gesture ended, dropping element: ${event.type} (${event.hand} hand)`
+      );
+      this.stopDrag(event.position);
     }
   }
 
@@ -289,6 +339,285 @@ export class DomainGestureHandler {
         "[DomainGestureHandler] Leave meeting dropdown button not found or not clickable"
       );
     }
+  }
+
+  /**
+   * Handle gestures for redmine.catalyst.net.nz domain
+   */
+  private handleRedmineGestures(event: GestureEvent): void {
+    if (event.type === "grab") {
+      console.log(
+        "[DomainGestureHandler] Grab gesture detected on Redmine domain - handling drag-and-drop"
+      );
+      this.handleRedmineGrabGesture(event);
+    }
+  }
+
+  /**
+   * Handle grab gesture for Redmine drag-and-drop functionality
+   */
+  private handleRedmineGrabGesture(event: GestureEvent): void {
+    // Find .issue.task element at the gesture position
+    const elementAtPosition = document.elementFromPoint(
+      event.position.x,
+      event.position.y
+    );
+    const issueElement = this.findIssueTaskElement(elementAtPosition);
+
+    if (!issueElement) {
+      console.log(
+        "[DomainGestureHandler] No .issue.task element found at grab position"
+      );
+      return;
+    }
+
+    if (!this.isDragging) {
+      // Start dragging
+      this.startDrag(issueElement, event.position);
+    } else {
+      // Continue dragging or drop
+      this.updateDrag(event.position);
+    }
+  }
+
+  /**
+   * Find the closest .issue.task element from a given element
+   */
+  private findIssueTaskElement(element: Element | null): HTMLElement | null {
+    if (!element) return null;
+
+    // Check if the element itself has both classes
+    if (
+      element.classList.contains("issue") &&
+      element.classList.contains("task")
+    ) {
+      return element as HTMLElement;
+    }
+
+    // Check parent elements up the DOM tree
+    let parent = element.parentElement;
+    while (parent) {
+      if (
+        parent.classList.contains("issue") &&
+        parent.classList.contains("task")
+      ) {
+        return parent;
+      }
+      parent = parent.parentElement;
+    }
+
+    return null;
+  }
+
+  /**
+   * Start dragging an issue task element
+   */
+  private startDrag(
+    element: HTMLElement,
+    position: { x: number; y: number }
+  ): void {
+    this.isDragging = true;
+    this.dragElement = element;
+    this.dragStartPosition = { x: position.x, y: position.y };
+
+    // Calculate offset from element's top-left corner to grab position
+    const rect = element.getBoundingClientRect();
+    this.dragOffset = {
+      x: position.x - rect.left,
+      y: position.y - rect.top,
+    };
+
+    // Add visual feedback for drag start
+    this.showRedmineDragStartFeedback(position);
+
+    // Add dragging class for styling
+    element.classList.add("fingertip-dragging");
+
+    // Make element follow cursor
+    element.style.position = "fixed";
+    element.style.zIndex = "10000";
+    element.style.pointerEvents = "none";
+    element.style.left = `${position.x - this.dragOffset.x}px`;
+    element.style.top = `${position.y - this.dragOffset.y}px`;
+
+    // Trigger mousedown event for compatibility
+    const mouseDownEvent = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      clientX: position.x,
+      clientY: position.y,
+    });
+    element.dispatchEvent(mouseDownEvent);
+
+    console.log("[DomainGestureHandler] Started dragging issue task element");
+  }
+
+  /**
+   * Update drag position
+   */
+  private updateDrag(position: { x: number; y: number }): void {
+    if (!this.isDragging || !this.dragElement || !this.dragOffset) {
+      return;
+    }
+
+    // Update element position
+    this.dragElement.style.left = `${position.x - this.dragOffset.x}px`;
+    this.dragElement.style.top = `${position.y - this.dragOffset.y}px`;
+
+    // Trigger mousemove event for compatibility
+    const mouseMoveEvent = new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: position.x,
+      clientY: position.y,
+    });
+    this.dragElement.dispatchEvent(mouseMoveEvent);
+  }
+
+  /**
+   * Stop dragging and drop the element
+   */
+  private stopDrag(position: { x: number; y: number }): void {
+    if (!this.isDragging || !this.dragElement) {
+      return;
+    }
+
+    // Show drop feedback
+    this.showRedmineDragDropFeedback(position);
+
+    // Remove dragging styles
+    this.dragElement.classList.remove("fingertip-dragging");
+    this.dragElement.style.position = "";
+    this.dragElement.style.zIndex = "";
+    this.dragElement.style.pointerEvents = "";
+    this.dragElement.style.left = "";
+    this.dragElement.style.top = "";
+
+    // Trigger mouseup event for compatibility
+    const mouseUpEvent = new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      clientX: position.x,
+      clientY: position.y,
+    });
+    this.dragElement.dispatchEvent(mouseUpEvent);
+
+    // Reset drag state
+    this.isDragging = false;
+    this.dragElement = null;
+    this.dragStartPosition = null;
+    this.dragOffset = null;
+
+    console.log("[DomainGestureHandler] Stopped dragging and dropped element");
+  }
+
+  /**
+   * Show visual feedback for drag start
+   */
+  private showRedmineDragStartFeedback(position: {
+    x: number;
+    y: number;
+  }): void {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = `
+      position: fixed;
+      left: ${position.x - 30}px;
+      top: ${position.y - 30}px;
+      width: 60px;
+      height: 60px;
+      background: radial-gradient(circle, rgba(0,123,255,0.8) 0%, rgba(0,123,255,0.3) 70%, transparent 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10001;
+      animation: redmineDragStartRipple 1.5s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const textElement = document.createElement("div");
+    textElement.textContent = "Grab";
+    textElement.style.cssText = `
+      color: #ffffff;
+      background: rgba(0, 123, 255, 0.9);
+      padding: 3px 8px;
+      border-radius: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+    `;
+    feedback.appendChild(textElement);
+
+    // Add CSS animation for drag start
+    if (!document.getElementById("redmine-drag-feedback-styles")) {
+      const style = document.createElement("style");
+      style.id = "redmine-drag-feedback-styles";
+      style.textContent = `
+        @keyframes redmineDragStartRipple {
+          0% { transform: scale(0.5); opacity: 1; }
+          100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes redmineDragDropRipple {
+          0% { transform: scale(0.3); opacity: 1; }
+          50% { transform: scale(1.5); opacity: 0.6; }
+          100% { transform: scale(3); opacity: 0; }
+        }
+        .fingertip-dragging {
+          box-shadow: 0 8px 32px rgba(0, 123, 255, 0.3) !important;
+          transform: rotate(2deg) !important;
+          opacity: 0.9 !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 1500);
+  }
+
+  /**
+   * Show visual feedback for drag drop
+   */
+  private showRedmineDragDropFeedback(position: {
+    x: number;
+    y: number;
+  }): void {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = `
+      position: fixed;
+      left: ${position.x - 40}px;
+      top: ${position.y - 40}px;
+      width: 80px;
+      height: 80px;
+      background: radial-gradient(circle, rgba(40,167,69,0.8) 0%, rgba(40,167,69,0.3) 70%, transparent 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10001;
+      animation: redmineDragDropRipple 2s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    const textElement = document.createElement("div");
+    textElement.textContent = "Drop";
+    textElement.style.cssText = `
+      color: #ffffff;
+      background: rgba(40, 167, 69, 0.9);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+    `;
+    feedback.appendChild(textElement);
+
+    document.body.appendChild(feedback);
+    setTimeout(() => feedback.remove(), 2000);
   }
 
   /**
@@ -671,5 +1000,20 @@ export class DomainGestureHandler {
   destroy(): void {
     this.isEnabled = false;
     this.lastGestureTime.clear();
+
+    // Clean up drag state
+    if (this.isDragging && this.dragElement) {
+      this.dragElement.classList.remove("fingertip-dragging");
+      this.dragElement.style.position = "";
+      this.dragElement.style.zIndex = "";
+      this.dragElement.style.pointerEvents = "";
+      this.dragElement.style.left = "";
+      this.dragElement.style.top = "";
+    }
+
+    this.isDragging = false;
+    this.dragElement = null;
+    this.dragStartPosition = null;
+    this.dragOffset = null;
   }
 }

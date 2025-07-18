@@ -10,6 +10,7 @@ export type GestureType =
   | "index-finger-up"
   | "middle-finger-up"
   | "palm-raise"
+  | "grab"
   | "none";
 
 export interface GestureEvent {
@@ -54,7 +55,10 @@ export class GestureDetector {
 
     // Get position based on gesture type
     let referencePoint: HandLandmark;
-    if (gesture === "palm-raise") {
+    if (gesture === "grab") {
+      // Use palm center (middle finger base) for grab gestures
+      referencePoint = landmarks[9];
+    } else if (gesture === "palm-raise") {
       // Use palm center (middle finger base) for palm raise gestures
       referencePoint = landmarks[9];
     } else if (gesture === "middle-finger-up") {
@@ -120,7 +124,12 @@ export class GestureDetector {
    * Classify the gesture based on hand landmarks
    */
   private classifyGesture(landmarks: HandLandmarks): GestureType {
-    // Check for palm raise gesture first (more specific)
+    // Check for grab gesture first (closed fist)
+    if (this.isGrabGesture(landmarks)) {
+      return "grab";
+    }
+
+    // Check for palm raise gesture (more specific)
     if (this.isPalmRaised(landmarks)) {
       return "palm-raise";
     }
@@ -287,6 +296,59 @@ export class GestureDetector {
   }
 
   /**
+   * Check if hand is making a grab gesture (closed fist - all fingers curled/folded)
+   */
+  private isGrabGesture(landmarks: HandLandmarks): boolean {
+    // Fingertip landmarks: thumb(4), index(8), middle(12), ring(16), pinky(20)
+    // Base landmarks: thumb(2), index(5), middle(9), ring(13), pinky(17)
+    // Palm landmarks: wrist(0), thumb_base(1), index_base(5), middle_base(9), ring_base(13), pinky_base(17)
+
+    const thumbTip = landmarks[4];
+    const thumbBase = landmarks[2];
+    const indexTip = landmarks[8];
+    const indexBase = landmarks[5];
+    const middleTip = landmarks[12];
+    const middleBase = landmarks[9];
+    const ringTip = landmarks[16];
+    const ringBase = landmarks[13];
+    const pinkyTip = landmarks[20];
+    const pinkyBase = landmarks[17];
+
+    // For grab gesture, all fingertips should be below or at same level as their bases (folded/curled)
+    // Use a small threshold to account for noise and natural hand curvature
+    const foldThreshold = 0.02; // Allow slight extension for natural curl
+
+    const thumbFolded = thumbTip.y >= thumbBase.y - foldThreshold;
+    const indexFolded = indexTip.y >= indexBase.y - foldThreshold;
+    const middleFolded = middleTip.y >= middleBase.y - foldThreshold;
+    const ringFolded = ringTip.y >= ringBase.y - foldThreshold;
+    const pinkyFolded = pinkyTip.y >= pinkyBase.y - foldThreshold;
+
+    // All fingers must be folded for grab gesture
+    const allFingersFolded =
+      thumbFolded && indexFolded && middleFolded && ringFolded && pinkyFolded;
+
+    if (!allFingersFolded) {
+      return false;
+    }
+
+    // Additional check: fingers should be close together (not spread)
+    // Measure horizontal distances between fingertips - they should be close
+    const indexMiddleDistance = Math.abs(indexTip.x - middleTip.x);
+    const middleRingDistance = Math.abs(middleTip.x - ringTip.x);
+    const ringPinkyDistance = Math.abs(ringTip.x - pinkyTip.x);
+
+    // For a closed fist, fingers should be close together
+    const maxCloseDistance = 0.05; // Maximum distance for "close together"
+    const fingersClose =
+      indexMiddleDistance < maxCloseDistance &&
+      middleRingDistance < maxCloseDistance &&
+      ringPinkyDistance < maxCloseDistance;
+
+    return fingersClose;
+  }
+
+  /**
    * Calculate confidence score for the detected gesture
    */
   private calculateConfidence(
@@ -295,6 +357,10 @@ export class GestureDetector {
   ): number {
     if (gesture === "none") {
       return 0;
+    }
+
+    if (gesture === "grab") {
+      return this.calculateGrabConfidence(landmarks);
     }
 
     if (gesture === "index-finger-up") {
@@ -310,6 +376,80 @@ export class GestureDetector {
     }
 
     return 0;
+  }
+
+  /**
+   * Calculate confidence for grab gesture
+   */
+  private calculateGrabConfidence(landmarks: HandLandmarks): number {
+    const thumbTip = landmarks[4];
+    const thumbBase = landmarks[2];
+    const indexTip = landmarks[8];
+    const indexBase = landmarks[5];
+    const middleTip = landmarks[12];
+    const middleBase = landmarks[9];
+    const ringTip = landmarks[16];
+    const ringBase = landmarks[13];
+    const pinkyTip = landmarks[20];
+    const pinkyBase = landmarks[17];
+
+    let confidence = 0;
+
+    // Finger folding confidence (0-0.6 total, 0.12 per finger)
+    // Higher confidence when fingers are more folded (tip below base)
+    const thumbFolded = Math.max(0, thumbTip.y - thumbBase.y + 0.02);
+    const indexFolded = Math.max(0, indexTip.y - indexBase.y + 0.02);
+    const middleFolded = Math.max(0, middleTip.y - middleBase.y + 0.02);
+    const ringFolded = Math.max(0, ringTip.y - ringBase.y + 0.02);
+    const pinkyFolded = Math.max(0, pinkyTip.y - pinkyBase.y + 0.02);
+
+    confidence += Math.min(0.12, thumbFolded * 6);
+    confidence += Math.min(0.12, indexFolded * 6);
+    confidence += Math.min(0.12, middleFolded * 6);
+    confidence += Math.min(0.12, ringFolded * 6);
+    confidence += Math.min(0.12, pinkyFolded * 6);
+
+    // Finger closeness confidence (0-0.3 total)
+    // Higher confidence when fingers are closer together (closed fist)
+    const indexMiddleDistance = Math.abs(indexTip.x - middleTip.x);
+    const middleRingDistance = Math.abs(middleTip.x - ringTip.x);
+    const ringPinkyDistance = Math.abs(ringTip.x - pinkyTip.x);
+
+    const avgDistance =
+      (indexMiddleDistance + middleRingDistance + ringPinkyDistance) / 3;
+    const closenessScore = Math.max(0, 0.05 - avgDistance); // Max closeness at 0.05 distance
+    confidence += Math.min(0.3, closenessScore * 6); // Scale to reach 0.3
+
+    // Fist compactness confidence (0-0.1 total)
+    // Check if all fingertips are close to palm center
+    const palmCenter = landmarks[9]; // Middle finger base as palm center reference
+    const avgDistanceFromPalm =
+      (Math.sqrt(
+        Math.pow(thumbTip.x - palmCenter.x, 2) +
+          Math.pow(thumbTip.y - palmCenter.y, 2)
+      ) +
+        Math.sqrt(
+          Math.pow(indexTip.x - palmCenter.x, 2) +
+            Math.pow(indexTip.y - palmCenter.y, 2)
+        ) +
+        Math.sqrt(
+          Math.pow(middleTip.x - palmCenter.x, 2) +
+            Math.pow(middleTip.y - palmCenter.y, 2)
+        ) +
+        Math.sqrt(
+          Math.pow(ringTip.x - palmCenter.x, 2) +
+            Math.pow(ringTip.y - palmCenter.y, 2)
+        ) +
+        Math.sqrt(
+          Math.pow(pinkyTip.x - palmCenter.x, 2) +
+            Math.pow(pinkyTip.y - palmCenter.y, 2)
+        )) /
+      5;
+
+    const compactness = Math.max(0, 0.15 - avgDistanceFromPalm); // Max compactness at 0.15 distance
+    confidence += Math.min(0.1, compactness * 0.67); // Scale to reach 0.1
+
+    return Math.min(1.0, confidence);
   }
 
   /**
