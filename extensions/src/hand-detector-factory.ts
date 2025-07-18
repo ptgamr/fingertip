@@ -1,6 +1,6 @@
 import { HandDetector } from "./hand-detector-interface";
-import { MediaPipeHandDetector } from "./mediapipe-hand-detector";
-import { TensorFlowHandDetector } from "./tensorflow-hand-detector";
+import { MediaPipeHandDetector } from "./onscreen-mediapipe-hand-detector";
+import { TensorFlowHandDetector } from "./onscreen-tensorflow-hand-detector";
 import { OffscreenHandDetector } from "./offscreen-hand-detector";
 
 export type HandDetectorType = "mediapipe" | "tensorflow" | "offscreen";

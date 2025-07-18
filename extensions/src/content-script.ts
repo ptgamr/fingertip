@@ -158,7 +158,7 @@ function enchantHtml(): HTMLElement & {
   return frame;
 }
 
-function getSettings(): Promise<Settings> {
+function getSettings(): Promise<Settings & { trackingMode: "hand" | "face" }> {
   return new Promise((resolve) => {
     chrome.storage.sync.get(
       {
@@ -168,9 +168,10 @@ function getSettings(): Promise<Settings> {
         trackTabs: true,
         trackPresentation: true,
         width: 240,
+        trackingMode: "hand" as "hand" | "face",
       },
       (items) => {
-        resolve(items as Settings);
+        resolve(items as Settings & { trackingMode: "hand" | "face" });
       }
     );
   });
@@ -183,7 +184,12 @@ async function startFingerTip(): Promise<void> {
     wpFrame = frame;
 
     if (!frame.camera) {
-      frame.camera = new FGTCamera(frame, settings, "offscreen");
+      frame.camera = new FGTCamera(
+        frame,
+        settings,
+        "offscreen",
+        settings.trackingMode
+      );
     }
 
     if (frame.menu) {

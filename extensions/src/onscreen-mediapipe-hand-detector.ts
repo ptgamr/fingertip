@@ -9,7 +9,7 @@ import {
   HandLandmark,
 } from "./hand-detector-interface";
 
-export class MediaPipeHandDetector implements HandDetector {
+export class OnscreenMediaPipeHandDetector implements HandDetector {
   private handLandmarker: HandLandmarker | null = null;
   public isLoaded: boolean = false;
 

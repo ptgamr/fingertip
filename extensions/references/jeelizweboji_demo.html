@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JeelizWeboji Face Tracking - Real Implementation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .demo-section {
+            margin-bottom: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .demo-section h2 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            margin: 20px auto;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        #jeelizCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .start-btn {
+            background: linear-gradient(45deg, #00C851, #007E33);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 200, 81, 0.4);
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 200, 81, 0.6);
+        }
+
+        .start-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        .status.loading {
+            background: rgba(255, 193, 7, 0.2);
+            color: #fff700;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+
+        .status.ready {
+            background: rgba(40, 167, 69, 0.2);
+            color: #00ff41;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+
+        .status.error {
+            background: rgba(220, 53, 69, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+        }
+
+        .expressions-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .expression-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .expression-name {
+            color: #fff;
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .expression-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .expression-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00C851, #007E33);
+            width: 0%;
+            transition: width 0.1s ease;
+            border-radius: 4px;
+        }
+
+        .expression-value {
+            color: #fff;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .face-detection-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        .face-coords {
+            color: #fff;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .detection-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #ff4444;
+            transition: background 0.3s ease;
+        }
+
+        .detection-indicator.active {
+            background: #00ff41;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .canvas-container {
+                height: 360px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            button {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 JeelizWeboji Face Tracking</h1>
+        
+        <div class="demo-section">
+            <h2>🎥 Live Face Tracking</h2>
+            <div class="status" id="status">Click "Start Face Tracking" to begin</div>
+            
+            <div class="controls">
+                <button class="start-btn" id="startBtn" onclick="startFaceTracking()">Start Face Tracking</button>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="jeelizCanvas"></canvas>
+            </div>
+            
+            <div class="face-detection-info">
+                <div class="face-coords" id="faceInfo">
+                    <span class="detection-indicator" id="detectionIndicator"></span>
+                    <span id="detectionText">No face detected</span>
+                </div>
+                <div class="face-coords" id="rotationInfo">
+                    Rotation: X: 0°, Y: 0°, Z: 0°
+                </div>
+            </div>
+            
+            <div class="expressions-panel" id="expressionsPanel">
+                <!-- Expression bars will be populated by JavaScript -->
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>📋 How it works</h2>
+            <p style="color: white; line-height: 1.6;">
+                This demo uses the actual JeelizWeboji library to perform real-time face tracking and expression detection.
+                The library uses WebGL deep learning to analyze your webcam feed and detect 11 different facial expressions.
+                Position your face in front of the camera and try different expressions to see the real-time detection in action!
+            </p>
+        </div>
+    </div>
+
+    <!-- Load JeelizWeboji from CDN -->
+    <script src="https://cdn.jsdelivr.net/gh/jeeliz/jeelizWeboji@master/dist/jeelizFaceExpressions.js"></script>
+    
+    <script>
+        let isInitialized = false;
+        let isTracking = false;
+        
+        // Expression names mapping to the 11 morphs returned by JeelizWeboji
+        const expressions = [
+            { name: 'Smile Right', key: 'smileRight', index: 0 },
+            { name: 'Smile Left', key: 'smileLeft', index: 1 },
+            { name: 'Eyebrow Left Down', key: 'eyeBrowLeftDown', index: 2 },
+            { name: 'Eyebrow Right Down', key: 'eyeBrowRightDown', index: 3 },
+            { name: 'Eyebrow Left Up', key: 'eyeBrowLeftUp', index: 4 },
+            { name: 'Eyebrow Right Up', key: 'eyeBrowRightUp', index: 5 },
+            { name: 'Mouth Open', key: 'mouthOpen', index: 6 },
+            { name: 'Mouth Round', key: 'mouthRound', index: 7 },
+            { name: 'Eye Right Close', key: 'eyeRightClose', index: 8 },
+            { name: 'Eye Left Close', key: 'eyeLeftClose', index: 9 },
+            { name: 'Mouth Nasty', key: 'mouthNasty', index: 10 }
+        ];
+        
+        function updateStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+        
+        function createExpressionsPanel() {
+            const panel = document.getElementById('expressionsPanel');
+            panel.innerHTML = '';
+            
+            expressions.forEach(expr => {
+                const item = document.createElement('div');
+                item.className = 'expression-item';
+                item.innerHTML = `
+                    <div class="expression-name">${expr.name}</div>
+                    <div class="expression-bar">
+                        <div class="expression-fill" id="fill-${expr.key}"></div>
+                    </div>
+                    <div class="expression-value" id="value-${expr.key}">0%</div>
+                `;
+                panel.appendChild(item);
+            });
+        }
+        
+        function updateExpressions(morphs) {
+            expressions.forEach(expr => {
+                const value = morphs[expr.index] || 0;
+                const fillEl = document.getElementById(`fill-${expr.key}`);
+                const valueEl = document.getElementById(`value-${expr.key}`);
+                
+                if (fillEl && valueEl) {
+                    // Clamp value between 0 and 1, then convert to percentage
+                    const percentage = Math.max(0, Math.min(100, value * 100));
+                    fillEl.style.width = `${percentage}%`;
+                    valueEl.textContent = `${percentage.toFixed(1)}%`;
+                }
+            });
+        }
+        
+        function updateFaceInfo(detected, rotation) {
+            const detectionIndicator = document.getElementById('detectionIndicator');
+            const detectionText = document.getElementById('detectionText');
+            const rotationInfo = document.getElementById('rotationInfo');
+            
+            if (detected > 0.5) {
+                detectionIndicator.className = 'detection-indicator active';
+                detectionText.textContent = `Face detected (${(detected * 100).toFixed(1)}%)`;
+                
+                if (rotation) {
+                    rotationInfo.textContent = `Rotation: X: ${(rotation[0] * 180/Math.PI).toFixed(1)}°, Y: ${(rotation[1] * 180/Math.PI).toFixed(1)}°, Z: ${(rotation[2] * 180/Math.PI).toFixed(1)}°`;
+                }
+            } else {
+                detectionIndicator.className = 'detection-indicator';
+                detectionText.textContent = 'No face detected';
+                rotationInfo.textContent = 'Rotation: X: 0°, Y: 0°, Z: 0°';
+            }
+        }
+        
+        function startFaceTracking() {
+            if (isInitialized) return;
+            
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.textContent = 'Initializing...';
+            
+            updateStatus('Initializing JeelizWeboji...', 'loading');
+            
+            // Initialize JeelizWeboji
+            JEELIZFACEEXPRESSIONS.init({
+                canvasId: 'jeelizCanvas',
+                NNCpath: 'https://cdn.jsdelivr.net/gh/jeeliz/jeelizWeboji@master/dist/jeelizFaceExpressionsNNC.json',
+                
+                callbackReady: function(errCode, spec) {
+                    if (errCode) {
+                        console.error('JeelizWeboji initialization error:', errCode);
+                        let errorMessage = 'Initialization failed: ';
+                        
+                        switch(errCode) {
+                            case 'GL_INCOMPATIBLE':
+                                errorMessage += 'WebGL not compatible';
+                                break;
+                            case 'WEBCAM_UNAVAILABLE':
+                                errorMessage += 'Camera not available';
+                                break;
+                            case 'INVALID_CANVASID':
+                                errorMessage += 'Invalid canvas ID';
+                                break;
+                            default:
+                                errorMessage += `Error code ${errCode}`;
+                        }
+                        
+                        updateStatus(errorMessage, 'error');
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Face Tracking';
+                        return;
+                    }
+                    
+                    console.log('JeelizWeboji initialized successfully');
+                    console.log('Spec:', spec);
+                    
+                    isInitialized = true;
+                    isTracking = true;
+                    updateStatus('Face tracking active! 🎭', 'ready');
+                    
+                    startBtn.textContent = 'Tracking Active';
+                    startBtn.style.background = 'linear-gradient(45deg, #007E33, #00C851)';
+                },
+                
+                callbackTrack: function(detectState) {
+                    if (!isTracking) return;
+                    
+                    // Update face detection info
+                    updateFaceInfo(detectState.detected, detectState.rotation);
+                    
+                    // Update expressions if face is detected
+                    if (detectState.detected > 0.5 && detectState.expressions) {
+                        updateExpressions(detectState.expressions);
+                    } else {
+                        // Reset expressions when no face is detected
+                        expressions.forEach(expr => {
+                            const fillEl = document.getElementById(`fill-${expr.key}`);
+                            const valueEl = document.getElementById(`value-${expr.key}`);
+                            if (fillEl && valueEl) {
+                                fillEl.style.width = '0%';
+                                valueEl.textContent = '0%';
+                            }
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Initialize the expressions panel on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            createExpressionsPanel();
+            
+            // Check for HTTPS
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                updateStatus('HTTPS required for camera access', 'error');
+                document.getElementById('startBtn').disabled = true;
+            }
+        });
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                isTracking = false;
+            } else if (isInitialized) {
+                isTracking = true;
+            }
+        });
+    </script>
+</body>
+</html>

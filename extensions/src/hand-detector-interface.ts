@@ -8,6 +8,9 @@ export interface HandDetectionResult {
   landmarks: HandLandmark[];
   // Index finger tip is typically landmark 8
   indexFingerTip: HandLandmark;
+  // Optional properties for multi-hand tracking
+  score?: number;
+  handedness?: string; // 'Left' or 'Right'
 }
 
 export interface HandDetector {

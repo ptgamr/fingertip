@@ -9,13 +9,7 @@
   "action": {
     "default_icon": "res/bar-icon.png"
   },
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "storage",
-    "notifications",
-    "offscreen"
-  ],
+  "permissions": ["tabs", "activeTab", "storage", "notifications", "offscreen"],
   "options_page": "options.html",
   "background": {
     "service_worker": "background.js",
@@ -26,6 +20,7 @@
       "matches": ["https://*/*"],
       "js": [
         "mediapipe/wasm/vision_wasm_nosimd_internal.js",
+        "jeelizFaceExpressions.js",
         "content-scripts/content-script.js"
       ],
       "css": ["res/wp-style.css"]
@@ -38,6 +33,8 @@
     {
       "resources": [
         "models/hand_landmarker.task",
+        "models/jeelizFaceExpressionsNNC.json",
+        "jeelizFaceExpressions.js",
         "mediapipe/wasm/vision_wasm_internal.js",
         "mediapipe/wasm/vision_wasm_internal.wasm",
         "mediapipe/wasm/vision_wasm_nosimd_internal.js",

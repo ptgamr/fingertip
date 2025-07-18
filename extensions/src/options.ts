@@ -9,6 +9,7 @@ interface OptionSettings {
   mirror: boolean;
   trackTabs: boolean;
   trackPresentation: boolean;
+  trackingMode: "hand" | "face";
 }
 
 function saveOptions(): void {
@@ -22,6 +23,11 @@ function saveOptions(): void {
   const trackPresentation = (
     document.getElementById("trackPresentation") as HTMLInputElement
   ).checked;
+  const trackingMode = (
+    document.querySelector(
+      'input[name="trackingMode"]:checked'
+    ) as HTMLInputElement
+  ).value as "hand" | "face";
 
   const settings: OptionSettings = {
     shape,
@@ -29,6 +35,7 @@ function saveOptions(): void {
     mirror,
     trackTabs,
     trackPresentation,
+    trackingMode,
   };
 
   chrome.storage.sync.set(settings, () => {
@@ -50,6 +57,7 @@ function restoreOptions(): void {
       mirror: true,
       trackTabs: true,
       trackPresentation: true,
+      trackingMode: "hand" as "hand" | "face",
     },
     (items: OptionSettings) => {
       (document.getElementById("shape") as HTMLSelectElement).value =
@@ -63,6 +71,21 @@ function restoreOptions(): void {
       (
         document.getElementById("trackPresentation") as HTMLInputElement
       ).checked = items.trackPresentation;
+
+      console.log(items);
+
+      // Set tracking mode radio buttons
+      const handRadio = document.getElementById(
+        "trackingModeHand"
+      ) as HTMLInputElement;
+      const faceRadio = document.getElementById(
+        "trackingModeFace"
+      ) as HTMLInputElement;
+      if (items.trackingMode === "hand") {
+        handRadio.checked = true;
+      } else {
+        faceRadio.checked = true;
+      }
     }
   );
 }

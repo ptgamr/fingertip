@@ -7,6 +7,8 @@ import {
 interface OffscreenHandDetectionResult {
   landmarks: Array<{ x: number; y: number; z: number }>;
   indexFingerTip: { x: number; y: number; z: number };
+  handedness?: string; // "Left" or "Right"
+  score?: number; // Confidence score
 }
 
 interface CameraSettings {
@@ -33,6 +35,7 @@ export class OffscreenHandDetector implements HandDetector {
       const response = await chrome.runtime.sendMessage({
         command: "start-camera",
         target: "offscreen",
+        mode: "hand",
         settings: {
           width: 640,
           height: 480,
@@ -41,7 +44,7 @@ export class OffscreenHandDetector implements HandDetector {
 
       if (!response.success) {
         throw new Error(
-          response.error || "Failed to start camera in offscreen",
+          response.error || "Failed to start camera in offscreen"
         );
       }
 
@@ -70,7 +73,7 @@ export class OffscreenHandDetector implements HandDetector {
       if (!response.success) {
         console.error(
           "Failed to get hand detection from offscreen:",
-          response.error,
+          response.error
         );
         return [];
       }
@@ -91,6 +94,8 @@ export class OffscreenHandDetector implements HandDetector {
         handResults.push({
           landmarks: landmarks,
           indexFingerTip: result.indexFingerTip,
+          handedness: result.handedness,
+          score: result.score,
         });
       }
 
@@ -111,6 +116,7 @@ export class OffscreenHandDetector implements HandDetector {
       chrome.runtime.sendMessage({
         command: "stop-camera",
         target: "offscreen",
+        mode: "hand",
       });
 
       this.isLoaded = false;

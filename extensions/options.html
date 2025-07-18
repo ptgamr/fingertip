@@ -1,122 +1,144 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-
-<head>
+  <head>
     <title>Webcam Preview Options</title>
-</head>
-<style>
+  </head>
+  <style>
     body {
-        margin: 20px;
-        background: gray;
-        font-family: 'Open Sans', sans-serif;
-        color: #333;
+      margin: 20px;
+      background: gray;
+      font-family: "Open Sans", sans-serif;
+      color: #333;
     }
 
     .container {
-        background: white;
-        width: 900px;
-        margin: auto;
-        padding: 60px 20px;
+      background: white;
+      width: 900px;
+      margin: auto;
+      padding: 60px 20px;
     }
 
     .select {
-        margin-top: 5px;
-        background: #FFF;
-        border-radius: 3px;
-        padding: 10px 30px 10px 10px;
-        font-size: 14px;
-        border-color: #ccc;
+      margin-top: 5px;
+      background: #fff;
+      border-radius: 3px;
+      padding: 10px 30px 10px 10px;
+      font-size: 14px;
+      border-color: #ccc;
     }
 
     .title {
-        font-weight: 400;
-        font-size: 24px;
-        margin-bottom: 20px;
+      font-weight: 400;
+      font-size: 24px;
+      margin-bottom: 20px;
     }
 
     .section {
-        margin-bottom: 20px;
-        font-size: 16px;
+      margin-bottom: 20px;
+      font-size: 16px;
     }
 
     .status {
-        font-size: 16px;
-        margin-left: 10px;
+      font-size: 16px;
+      margin-left: 10px;
     }
 
     .btn {
-        background: #52a6c8;
-        color: #fff;
-        border-radius: 3px;
-        height: 40px;
-        line-height: 40px;
-        padding: 0 20px;
-        display: inline-block;
-        border: 0;
-        font-size: 16px;
-        cursor: pointer;
+      background: #52a6c8;
+      color: #fff;
+      border-radius: 3px;
+      height: 40px;
+      line-height: 40px;
+      padding: 0 20px;
+      display: inline-block;
+      border: 0;
+      font-size: 16px;
+      cursor: pointer;
     }
-</style>
+  </style>
 
-<body>
-
+  <body>
     <div class="container">
+      <div class="title">Webcam Preview Options</div>
 
-        <div class="title">Webcam Preview Options</div>
+      <div class="section">
+        <label for="shape">Shape:</label>
+        <select class="select" id="shape">
+          <option value="oval" selected="selected">Oval</option>
+          <option value="rectangle">Rectangle</option>
+          <option value="square">Square</option>
+          <option value="circle">Circle</option>
+        </select>
+      </div>
 
-        <div class="section">
+      <div class="section">
+        <label for="position">Position:</label>
+        <select class="select" id="position">
+          <option value="leftBottom" selected="selected">Left Bottom</option>
+          <option value="rightBottom">Right Bottom</option>
+          <option value="rightTop">Right Top</option>
+          <option value="leftTop">Left Top</option>
+        </select>
+      </div>
 
-            <label for="shape">Shape:</label>
-            <select class="select" id="shape">
-                <option value="oval" selected="selected">Oval</option>
-                <option value="rectangle">Rectangle</option>
-                <option value="square">Square</option>
-                <option value="circle">Circle</option>
-            </select>
+      <div class="section">
+        <label for="mirror">
+          <input type="checkbox" id="mirror" checked="checked" />
+          Mirror mode
+        </label>
+      </div>
 
+      <div class="section">
+        <label for="trackTabs">
+          <input type="checkbox" id="trackTabs" checked="checked" />
+          Track Tabs
+        </label>
+      </div>
+
+      <div class="section">
+        <label for="trackPresentation">
+          <input type="checkbox" id="trackPresentation" checked="checked" />
+          Track Full Screen Presentation
+        </label>
+      </div>
+
+      <div class="section">
+        <label>Tracking Mode:</label>
+        <div style="margin-top: 10px">
+          <label for="trackingModeHand" style="margin-right: 20px">
+            <input
+              type="radio"
+              id="trackingModeHand"
+              name="trackingMode"
+              value="hand"
+              checked="checked"
+            />
+            Hand Tracking - Control cursor with hand gestures and finger
+            movements
+          </label>
+          <br />
+          <label
+            for="trackingModeFace"
+            style="margin-top: 10px; display: inline-block"
+          >
+            <input
+              type="radio"
+              id="trackingModeFace"
+              name="trackingMode"
+              value="face"
+            />
+            Face Tracking - Control cursor with head movements and facial
+            expressions
+          </label>
         </div>
+      </div>
 
-        <div class="section">
-            <label for="position">Position:</label>
-            <select class="select" id="position">
-                <option value="leftBottom" selected="selected">Left Bottom</option>
-                <option value="rightBottom">Right Bottom</option>
-                <option value="rightTop">Right Top</option>
-                <option value="leftTop">Left Top</option>
-            </select>
-
-
-        </div>
-
-        <div class="section">
-            <label for="mirror">
-                <input type="checkbox" id="mirror" checked="checked">
-                Mirror mode
-            </label>
-        </div>
-
-        <div class="section">
-            <label for="trackTabs">
-                <input type="checkbox" id="trackTabs" checked="checked">
-                Track Tabs
-            </label>
-        </div>
-
-        <div class="section">
-            <label for="trackPresentation">
-                <input type="checkbox" id="trackPresentation" checked="checked">
-                Track Full Screen Presentation
-            </label>
-        </div>
-
-        <div>
-            <button class="btn" id="save">Save</button>
-            <span class="status" id="status"></span>
-        </div>
-
+      <div>
+        <button class="btn" id="save">Save</button>
+        <span class="status" id="status"></span>
+      </div>
     </div>
 
-    <script src="src/options.js"></script>
-</body>
-
-</html> 
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -41,4 +41,59 @@
 .wp-menu-item-separator:hover {
     background-color: #6CB5FF;
     cursor: pointer;
-} 
+}
+
+/* Fingertip tracker dots */
+.fingertip-tracker-dot {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99999;
+    transform: translate(-50%, -50%);
+    transition: box-shadow 0.2s ease;
+}
+
+/* Left hand dot - red */
+#fingertip-tracker-dot-left {
+    background-color: #ff0000;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+}
+
+/* Right hand dot - blue */
+#fingertip-tracker-dot-right {
+    background-color: #0000ff;
+    box-shadow: 0 0 15px rgba(0, 0, 255, 0.9);
+}
+
+/* Pinching state - green */
+.fingertip-tracker-dot.pinching {
+    background-color: #00ff00 !important;
+    box-shadow: 0 0 30px rgba(0, 255, 0, 0.9) !important;
+}
+
+/* Scrolling state - yellow */
+.fingertip-tracker-dot.scrolling {
+    background-color: #ffff00 !important;
+    box-shadow: 0 0 24px rgba(255, 255, 0, 0.9) !important;
+}
+
+/* Debug panel */
+#fingertip-tracker-debug {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    font-family: monospace;
+    font-size: 12px;
+    border-radius: 4px;
+    z-index: 99999;
+    pointer-events: none;
+    min-width: 200px;
+    line-height: 1.5;
+}
+
+#fingertip-tracker-debug div {
+    margin: 2px 0;
+}
