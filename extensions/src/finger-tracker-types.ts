@@ -140,7 +140,7 @@ export const defaultScrollConfig: ScrollConfig = {
 
 export const defaultVisualConfig: VisualConfig = {
   leftHandColor: "#ff0000",
-  rightHandColor: "#0000ff",
+  rightHandColor: "limegreen",
   dotSize: 12,
   glowIntensity: 20,
   tweenDuration: 0.15,

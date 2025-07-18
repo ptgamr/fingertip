@@ -120,6 +120,11 @@ export class DomainGestureHandler {
         "[DomainGestureHandler] Palm raise detected on BigBB domain - triggering palm raise action"
       );
       this.triggerPalmRaiseAction(event);
+    } else if (event.type === "middle-finger-up") {
+      console.log(
+        "[DomainGestureHandler] Middle finger up detected on BigBB domain - triggering leave meeting action"
+      );
+      this.triggerMiddleFingerAction(event);
     }
   }
 
@@ -229,6 +234,64 @@ export class DomainGestureHandler {
   }
 
   /**
+   * Trigger middle finger action for BigBB domain
+   * This implements a sequence to leave the meeting by clicking dropdown then logout
+   */
+  private triggerMiddleFingerAction(event: GestureEvent): void {
+    console.log(
+      `[DomainGestureHandler] Middle finger action triggered at position (${event.position.x}, ${event.position.y})`
+    );
+
+    // Show visual feedback immediately
+    this.showMiddleFingerVisualFeedback(event.position, "Leave Meeting");
+
+    // Step 1: Find and click the leave meeting dropdown button
+    const dropdownButton = document.querySelector(
+      'button[data-test="leaveMeetingDropdown"]'
+    ) as HTMLElement;
+
+    if (
+      dropdownButton &&
+      this.isElementVisible(dropdownButton) &&
+      !this.isElementDisabled(dropdownButton)
+    ) {
+      console.log(
+        "[DomainGestureHandler] Clicking leave meeting dropdown button"
+      );
+      dropdownButton.click();
+
+      // Step 2: Wait 2-3 seconds then click the direct logout button
+      setTimeout(() => {
+        const logoutButton = document.querySelector(
+          "#directLogoutButton"
+        ) as HTMLElement;
+
+        if (
+          logoutButton &&
+          this.isElementVisible(logoutButton) &&
+          !this.isElementDisabled(logoutButton)
+        ) {
+          console.log(
+            "[DomainGestureHandler] Clicking direct logout button after delay"
+          );
+          logoutButton.click();
+          console.log(
+            "[DomainGestureHandler] Middle finger action sequence completed successfully"
+          );
+        } else {
+          console.log(
+            "[DomainGestureHandler] Direct logout button not found or not clickable after dropdown opened"
+          );
+        }
+      }, 2500); // 2.5 second delay
+    } else {
+      console.log(
+        "[DomainGestureHandler] Leave meeting dropdown button not found or not clickable"
+      );
+    }
+  }
+
+  /**
    * Show visual feedback specifically for palm raise gesture
    */
   private showPalmRaiseVisualFeedback(
@@ -328,6 +391,120 @@ export class DomainGestureHandler {
         feedback.parentNode.removeChild(feedback);
       }
     }, 5000);
+  }
+
+  /**
+   * Show visual feedback specifically for middle finger gesture
+   */
+  private showMiddleFingerVisualFeedback(
+    position: {
+      x: number;
+      y: number;
+    },
+    actionText?: string
+  ): void {
+    const feedback = document.createElement("div");
+    feedback.style.cssText = `
+      position: fixed;
+      left: ${position.x - 50}px;
+      top: ${position.y - 50}px;
+      width: 100px;
+      height: 100px;
+      background: radial-gradient(circle, rgba(220,20,60,0.9) 0%, rgba(220,20,60,0.4) 70%, transparent 100%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10000;
+      animation: middleFingerRipple 2.5s ease-out forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+
+    // Add action text if provided
+    if (actionText) {
+      const textElement = document.createElement("div");
+      textElement.textContent = actionText;
+      textElement.style.cssText = `
+        color: #ffffff;
+        background: rgba(220, 20, 60, 0.95);
+        padding: 6px 12px;
+        border-radius: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 3px 12px rgba(220, 20, 60, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2);
+        white-space: nowrap;
+        animation: middleFingerTextPulse 2.5s ease-out forwards;
+        transform: scale(0.8);
+        opacity: 0;
+      `;
+      feedback.appendChild(textElement);
+    }
+
+    // Add CSS animation for middle finger gesture (distinctive red theme)
+    if (!document.getElementById("middle-finger-feedback-styles")) {
+      const style = document.createElement("style");
+      style.id = "middle-finger-feedback-styles";
+      style.textContent = `
+        @keyframes middleFingerRipple {
+          0% {
+            transform: scale(0.4);
+            opacity: 1;
+          }
+          30% {
+            transform: scale(1.1);
+            opacity: 0.9;
+          }
+          70% {
+            transform: scale(1.8);
+            opacity: 0.5;
+          }
+          100% {
+            transform: scale(3);
+            opacity: 0;
+          }
+        }
+        @keyframes middleFingerTextPulse {
+          0% {
+            transform: scale(0.7);
+            opacity: 0;
+          }
+          20% {
+            transform: scale(1.2);
+            opacity: 1;
+          }
+          40% {
+            transform: scale(0.9);
+            opacity: 1;
+          }
+          60% {
+            transform: scale(1.05);
+            opacity: 1;
+          }
+          80% {
+            transform: scale(0.95);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(feedback);
+
+    // Remove feedback after animation (extended duration for better visibility)
+    setTimeout(() => {
+      if (feedback.parentNode) {
+        feedback.parentNode.removeChild(feedback);
+      }
+    }, 6000);
   }
 
   /**

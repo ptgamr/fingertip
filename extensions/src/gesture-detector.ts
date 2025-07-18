@@ -6,7 +6,11 @@ import {
   Position,
 } from "./finger-tracker-types";
 
-export type GestureType = "index-finger-up" | "palm-raise" | "none";
+export type GestureType =
+  | "index-finger-up"
+  | "middle-finger-up"
+  | "palm-raise"
+  | "none";
 
 export interface GestureEvent {
   type: GestureType;
@@ -53,6 +57,9 @@ export class GestureDetector {
     if (gesture === "palm-raise") {
       // Use palm center (middle finger base) for palm raise gestures
       referencePoint = landmarks[9];
+    } else if (gesture === "middle-finger-up") {
+      // Use middle finger tip for middle finger gestures
+      referencePoint = landmarks[12];
     } else {
       // Use index finger tip for other gestures
       referencePoint = landmarks[8];
@@ -118,6 +125,11 @@ export class GestureDetector {
       return "palm-raise";
     }
 
+    // Check for middle finger up gesture before index finger
+    if (this.isMiddleFingerUp(landmarks)) {
+      return "middle-finger-up";
+    }
+
     // Check for index finger up gesture
     if (this.isIndexFingerUp(landmarks)) {
       return "index-finger-up";
@@ -168,6 +180,52 @@ export class GestureDetector {
       indexExtended &&
       indexStraight &&
       middleFolded &&
+      ringFolded &&
+      pinkyFolded
+    );
+  }
+
+  /**
+   * Check if middle finger is pointing up
+   */
+  private isMiddleFingerUp(landmarks: HandLandmarks): boolean {
+    // Middle finger landmarks: 9 (MCP), 10 (PIP), 11 (DIP), 12 (TIP)
+    // Index finger landmarks: 5 (MCP), 6 (PIP), 7 (DIP), 8 (TIP)
+    // Ring finger landmarks: 13 (MCP), 14 (PIP), 15 (DIP), 16 (TIP)
+    // Pinky landmarks: 17 (MCP), 18 (PIP), 19 (DIP), 20 (TIP)
+
+    const middleMCP = landmarks[9]; // Middle finger base
+    const middlePIP = landmarks[10]; // Middle finger middle joint
+    const middleDIP = landmarks[11]; // Middle finger upper joint
+    const middleTIP = landmarks[12]; // Middle finger tip
+
+    const indexMCP = landmarks[5]; // Index finger base
+    const indexTIP = landmarks[8]; // Index finger tip
+    const ringMCP = landmarks[13]; // Ring finger base
+    const ringTIP = landmarks[16]; // Ring finger tip
+    const pinkyMCP = landmarks[17]; // Pinky base
+    const pinkyTIP = landmarks[20]; // Pinky tip
+
+    // Check if middle finger is extended (tip is above base)
+    const middleExtended = middleTIP.y < middleMCP.y - 0.05; // 0.05 threshold for noise
+
+    // Check if middle finger is straight (joints are aligned vertically)
+    const middleStraight =
+      Math.abs(middleTIP.x - middleMCP.x) < 0.1 && // Horizontal alignment
+      middlePIP.y < middleMCP.y && // PIP above MCP
+      middleDIP.y < middlePIP.y && // DIP above PIP
+      middleTIP.y < middleDIP.y; // TIP above DIP
+
+    // Check if other fingers are folded (tips are below or at same level as bases)
+    const indexFolded = indexTIP.y >= indexMCP.y - 0.02;
+    const ringFolded = ringTIP.y >= ringMCP.y - 0.02;
+    const pinkyFolded = pinkyTIP.y >= pinkyMCP.y - 0.02;
+
+    // Middle finger up gesture: middle extended and straight, other fingers folded
+    return (
+      middleExtended &&
+      middleStraight &&
+      indexFolded &&
       ringFolded &&
       pinkyFolded
     );
@@ -243,6 +301,10 @@ export class GestureDetector {
       return this.calculateIndexFingerUpConfidence(landmarks);
     }
 
+    if (gesture === "middle-finger-up") {
+      return this.calculateMiddleFingerUpConfidence(landmarks);
+    }
+
     if (gesture === "palm-raise") {
       return this.calculatePalmRaiseConfidence(landmarks);
     }
@@ -275,6 +337,37 @@ export class GestureDetector {
     const pinkyFolded = Math.max(0, pinkyTIP.y - pinkyMCP.y + 0.02);
 
     confidence += Math.min(0.2, middleFolded * 10);
+    confidence += Math.min(0.2, ringFolded * 10);
+    confidence += Math.min(0.2, pinkyFolded * 10);
+
+    return Math.min(1.0, confidence);
+  }
+
+  /**
+   * Calculate confidence for middle finger up gesture
+   */
+  private calculateMiddleFingerUpConfidence(landmarks: HandLandmarks): number {
+    const middleMCP = landmarks[9];
+    const middleTIP = landmarks[12];
+    const indexMCP = landmarks[5];
+    const indexTIP = landmarks[8];
+    const ringMCP = landmarks[13];
+    const ringTIP = landmarks[16];
+    const pinkyMCP = landmarks[17];
+    const pinkyTIP = landmarks[20];
+
+    let confidence = 0;
+
+    // Middle finger extension confidence (0-0.4)
+    const middleExtension = Math.max(0, middleMCP.y - middleTIP.y);
+    confidence += Math.min(0.4, middleExtension * 2);
+
+    // Other fingers folded confidence (0-0.6)
+    const indexFolded = Math.max(0, indexTIP.y - indexMCP.y + 0.02);
+    const ringFolded = Math.max(0, ringTIP.y - ringMCP.y + 0.02);
+    const pinkyFolded = Math.max(0, pinkyTIP.y - pinkyMCP.y + 0.02);
+
+    confidence += Math.min(0.2, indexFolded * 10);
     confidence += Math.min(0.2, ringFolded * 10);
     confidence += Math.min(0.2, pinkyFolded * 10);
 
