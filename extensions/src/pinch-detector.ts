@@ -1,13 +1,10 @@
 import {
   HandType,
   HandState,
-  PinchState,
   PinchConfig,
   PinchEvent,
   PinchEventType,
   HandLandmarks,
-  Handedness,
-  Position,
   defaultPinchConfig,
 } from "./finger-tracker-types";
 
@@ -53,6 +50,62 @@ export class PinchDetector {
   }
 
   /**
+   * Check if other fingers (middle, ring, pinky) are extended (not folded)
+   */
+  private areOtherFingersExtended(landmarks: HandLandmarks): boolean {
+    // Check middle finger (landmarks: tip=12, pip=10)
+    const middleTip = landmarks[12];
+    const middlePip = landmarks[10];
+
+    // Check ring finger (landmarks: tip=16, pip=14)
+    const ringTip = landmarks[16];
+    const ringPip = landmarks[14];
+
+    // Check pinky finger (landmarks: tip=20, pip=18)
+    const pinkyTip = landmarks[20];
+    const pinkyPip = landmarks[18];
+
+    // A finger is extended if its tip is above (further from palm) than its base (MCP joint)
+    // In MediaPipe coordinates, "above" means smaller y-value (closer to top of image)
+    const isMiddleExtended = middleTip.y < middlePip.y;
+    const isRingExtended = ringTip.y < ringPip.y;
+    const isPinkyExtended = pinkyTip.y < pinkyPip.y;
+
+    return isMiddleExtended && isRingExtended && isPinkyExtended;
+  }
+
+  /**
+   * Check if all fingers including index are folded (not a valid pinch)
+   */
+  private areAllFingersFolded(landmarks: HandLandmarks): boolean {
+    // Check index finger (landmarks: tip=8, mcp=5)
+    const indexTip = landmarks[8];
+    const indexMcp = landmarks[5];
+
+    // Check middle finger (landmarks: tip=12, mcp=9)
+    const middleTip = landmarks[12];
+    const middleMcp = landmarks[9];
+
+    // Check ring finger (landmarks: tip=16, mcp=13)
+    const ringTip = landmarks[16];
+    const ringMcp = landmarks[13];
+
+    // Check pinky finger (landmarks: tip=20, mcp=17)
+    const pinkyTip = landmarks[20];
+    const pinkyMcp = landmarks[17];
+
+    // A finger is folded if its tip is below (closer to palm) than its base (MCP joint)
+    // In MediaPipe coordinates, "below" means larger y-value (closer to bottom of image)
+    const isIndexFolded = indexTip.y > indexMcp.y;
+    const isMiddleFolded = middleTip.y > middleMcp.y;
+    const isRingFolded = ringTip.y > ringMcp.y;
+    const isPinkyFolded = pinkyTip.y > pinkyMcp.y;
+
+    // Return true if ALL fingers are folded
+    return isIndexFolded && isMiddleFolded && isRingFolded && isPinkyFolded;
+  }
+
+  /**
    * Process hand landmarks and detect pinch gestures
    */
   processHand(
@@ -68,6 +121,10 @@ export class PinchDetector {
     const indexTip = landmarks[8];
     const thumbTip = landmarks[4];
 
+    // Check finger states for valid pinch conditions
+    const otherFingersExtended = this.areOtherFingersExtended(landmarks);
+    const allFingersFolded = this.areAllFingersFolded(landmarks);
+
     // Calculate pinch distance in normalized space
     const pinchDistance = this.calculatePinchDistance(
       indexTip,
@@ -79,8 +136,12 @@ export class PinchDetector {
     // Update smoothed pinch distance
     this.updateSmoothedDistance(state, pinchDistance);
 
-    // Detect pinch state
-    const isCurrentlyPinching = this.detectPinch(state);
+    // Detect pinch state - only if:
+    // 1. Other fingers are extended (not folded)
+    // 2. NOT all fingers are folded (that's a fist, not a pinch)
+    // 3. Basic pinch distance threshold is met
+    const isCurrentlyPinching =
+      otherFingersExtended && !allFingersFolded && this.detectPinch(state);
 
     // Update current pinch position BEFORE state transitions
     state.curPinch = { x: indexTip.x, y: indexTip.y };
