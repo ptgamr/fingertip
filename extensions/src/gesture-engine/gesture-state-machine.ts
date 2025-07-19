@@ -363,19 +363,6 @@ export class GestureStateMachine {
     const currentPhase = handState.currentPhase;
     let newPhase: GesturePhase | null = null;
 
-    // Also emit continuous pinch-held events during held phase (for ScrollController compatibility)
-    if (currentPhase === "held") {
-      const heldEvent = this.createGestureEvent(
-        handState.currentGesture,
-        "held",
-        hand,
-        currentPosition,
-        handState,
-        detectionResult
-      );
-      this.eventBus.emit(heldEvent);
-    }
-
     // Determine phase transitions
     switch (currentPhase) {
       case "start":
@@ -384,20 +371,18 @@ export class GestureStateMachine {
         }
         break;
 
-      case "held":
-        // Check for movement to trigger move phase
-        const movement = this.calculateMovement(
-          handState.lastPosition,
-          currentPosition
+      case "held": {
+        const heldEvent = this.createGestureEvent(
+          handState.currentGesture,
+          "held",
+          hand,
+          currentPosition,
+          handState,
+          detectionResult
         );
-        if (movement > this.config.movementThreshold) {
-          newPhase = "move";
-        }
+        this.eventBus.emit(heldEvent);
         break;
-
-      case "move":
-        // Continue in move phase - move events already emitted above
-        break;
+      }
     }
 
     // Handle phase transition

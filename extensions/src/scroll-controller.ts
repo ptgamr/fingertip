@@ -32,7 +32,7 @@ export class ScrollController {
   constructor(
     gestureSource: GestureEngine,
     config?: Partial<ScrollConfig>,
-    logLevel: "error" | "info" | "debug" = "info",
+    logLevel: "error" | "info" | "debug" = "info"
   ) {
     this.config = { ...defaultScrollConfig, ...config };
     this.gestureSource = gestureSource;
@@ -177,7 +177,7 @@ export class ScrollController {
     this.logInfo(
       `Found scroll target: ${
         state.target === window ? "window" : (state.target as Element)?.tagName
-      }`,
+      }`
     );
 
     // Store original scroll position
@@ -220,24 +220,18 @@ export class ScrollController {
     const xDiff = -(event.origPinch.x - event.curPinch.x);
     const yDiff = event.origPinch.y - event.curPinch.y;
 
-    // Convert normalized delta to pixel delta
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    const pixelXDiff = xDiff * viewportWidth;
-    const pixelYDiff = yDiff * viewportHeight;
-
     // Calculate target scroll position
-    const targetX = state.tweenScroll.x + pixelXDiff * this.config.scrollSpeed;
-    const targetY = state.tweenScroll.y + pixelYDiff * this.config.scrollSpeed;
+    const targetX = state.tweenScroll.x + xDiff * this.config.scrollSpeed;
+    const targetY = state.tweenScroll.y + yDiff * this.config.scrollSpeed;
 
     this.logDebug(`Scroll delta:`, {
-      pixelDelta: { x: pixelXDiff, y: pixelYDiff },
+      event,
+      pixelDelta: { x: xDiff, y: yDiff },
       targetPosition: { x: targetX, y: targetY },
     });
 
     // Apply continuous scrolling with GSAP
-    const tween = gsap.to(state.tweenScroll, {
+    gsap.to(state.tweenScroll, {
       x: targetX,
       y: targetY,
       duration: this.config.tweenDuration,
@@ -253,7 +247,7 @@ export class ScrollController {
           this.updateCounter++;
           if (this.updateCounter % 10 === 0) {
             this.logDebug(
-              `GSAP onUpdate - applying scroll (update #${this.updateCounter})`,
+              `GSAP onUpdate - applying scroll (update #${this.updateCounter})`
             );
           }
           this.applyScroll(state.target, state.tweenScroll);
@@ -370,7 +364,7 @@ export class ScrollController {
    * Set callback for scrolling state changes
    */
   onScrollingStateChange(
-    callback: (hand: HandType, isScrolling: boolean) => void,
+    callback: (hand: HandType, isScrolling: boolean) => void
   ): void {
     this.onScrollingCallback = callback;
   }
