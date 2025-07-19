@@ -101,24 +101,32 @@ export class PinchGestureDetector extends BaseGestureDetector {
 
   /**
    * Check if other fingers (middle, ring, pinky) are extended
+   * Made more lenient for better pinch detection
    */
   private areOtherFingersExtended(landmarks: HandLandmarks): boolean {
     const fingerConfigs = [
       {
         tipIndex: FINGER_LANDMARKS.MIDDLE.TIP,
-        baseIndex: FINGER_LANDMARKS.MIDDLE.PIP,
+        baseIndex: FINGER_LANDMARKS.MIDDLE.MCP, // Changed from PIP to MCP for more lenient detection
       },
       {
         tipIndex: FINGER_LANDMARKS.RING.TIP,
-        baseIndex: FINGER_LANDMARKS.RING.PIP,
+        baseIndex: FINGER_LANDMARKS.RING.MCP, // Changed from PIP to MCP for more lenient detection
       },
       {
         tipIndex: FINGER_LANDMARKS.PINKY.TIP,
-        baseIndex: FINGER_LANDMARKS.PINKY.PIP,
+        baseIndex: FINGER_LANDMARKS.PINKY.MCP, // Changed from PIP to MCP for more lenient detection
       },
     ];
 
-    return this.areFingersExtended(landmarks, fingerConfigs);
+    // Require at least 2 out of 3 fingers to be extended (more lenient)
+    const extendedCount = fingerConfigs.filter((config) => {
+      const tip = landmarks[config.tipIndex];
+      const base = landmarks[config.baseIndex];
+      return tip.y < base.y; // Tip is above base (extended)
+    }).length;
+
+    return extendedCount >= 3;
   }
 
   /**

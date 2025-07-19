@@ -26,6 +26,7 @@ export class FingerTracker3 {
   constructor(config?: FingerTrackerConfig) {
     // Initialize components
     this.gestureEngine = new GestureEngine();
+    this.gestureEngine.setDebugEnabled(true);
     this.scrollController = new ScrollController(
       this.gestureEngine,
       config?.scroll
