@@ -143,7 +143,7 @@ export class GestureStateMachine {
   }
 
   /**
-   * Process state transition logic
+   * Process state transition logic - SIMPLIFIED AND CORRECT
    */
   private processStateTransition(
     hand: HandType,
@@ -152,14 +152,30 @@ export class GestureStateMachine {
     handState: GestureHandState
   ): StateTransition | null {
     const currentTime = Date.now();
-    const gestureType = dominantGesture.type;
+    const detectedGesture = dominantGesture.type;
     const isGestureActive = dominantGesture.isActive;
 
-    // Handle gesture change
-    if (gestureType !== handState.currentGesture) {
-      return this.handleGestureChange(
+    console.log(`[DEBUG] processStateTransition: ${hand} ${detectedGesture}`, {
+      currentGesture: handState.currentGesture,
+      currentPhase: handState.currentPhase,
+      isGestureActive,
+      stableFrameCount: handState.stableFrameCount,
+    });
+
+    // CASE 1: No gesture detected
+    if (!isGestureActive || detectedGesture === "none") {
+      return this.handleNoGesture(
         hand,
-        gestureType,
+        currentPosition,
+        currentTime,
+        handState
+      );
+    }
+
+    // CASE 2: Same gesture as current - continue or confirm
+    if (detectedGesture === handState.currentGesture) {
+      return this.handleSameGesture(
+        hand,
         dominantGesture,
         currentPosition,
         currentTime,
@@ -167,138 +183,176 @@ export class GestureStateMachine {
       );
     }
 
-    // Handle phase transitions within the same gesture
-    if (isGestureActive && gestureType !== "none") {
-      return this.handlePhaseTransition(
-        hand,
-        dominantGesture,
-        currentPosition,
-        currentTime,
-        handState
-      );
-    }
+    // CASE 3: Different gesture detected - change gesture
+    return this.handleGestureChange(
+      hand,
+      detectedGesture,
+      dominantGesture,
+      currentPosition,
+      currentTime,
+      handState
+    );
+  }
 
-    // Handle gesture release
-    if (!isGestureActive && handState.currentGesture !== "none") {
-      return this.handleGestureRelease(
-        hand,
-        currentPosition,
-        currentTime,
-        handState
-      );
-    }
+  /**
+   * Handle when no gesture is detected
+   */
+  private handleNoGesture(
+    hand: HandType,
+    currentPosition: Position,
+    currentTime: number,
+    handState: GestureHandState
+  ): StateTransition | null {
+    // If we were tracking a gesture, start release process
+    if (handState.currentGesture !== "none") {
+      handState.transitionFrameCount++;
 
-    // Update frame counts for stability tracking
-    this.updateFrameCounts(handState, isGestureActive);
+      if (
+        handState.transitionFrameCount >= this.config.framesToConfirmRelease
+      ) {
+        console.log(`[DEBUG] Releasing gesture ${handState.currentGesture}`);
+
+        const fromState = {
+          gesture: handState.currentGesture,
+          phase: handState.currentPhase,
+        };
+
+        const event = this.createGestureEvent(
+          handState.currentGesture,
+          "released",
+          hand,
+          currentPosition,
+          handState
+        );
+
+        // Reset to initial state
+        this.resetHandState(handState);
+
+        return {
+          from: fromState,
+          to: { gesture: "none", phase: "released" },
+          event,
+        };
+      }
+    }
 
     return null;
   }
 
   /**
-   * Handle gesture type change
+   * Handle when the same gesture continues
+   */
+  private handleSameGesture(
+    hand: HandType,
+    dominantGesture: GestureDetectionResult & { type: GestureType },
+    currentPosition: Position,
+    currentTime: number,
+    handState: GestureHandState
+  ): StateTransition | null {
+    const gestureType = dominantGesture.type;
+
+    // Reset transition frame count since gesture is still active
+    handState.transitionFrameCount = 0;
+
+    // If gesture is not yet started (still in released phase), accumulate frames
+    if (handState.currentPhase === "released") {
+      handState.stableFrameCount++;
+
+      console.log(
+        `[DEBUG] Accumulating frames for ${gestureType}: ${handState.stableFrameCount}/${this.config.framesToConfirmStart}`
+      );
+
+      // Check if we have enough frames to start the gesture
+      if (handState.stableFrameCount >= this.config.framesToConfirmStart) {
+        console.log(
+          `[DEBUG] Starting gesture ${gestureType} after ${handState.stableFrameCount} frames`
+        );
+
+        const fromState = {
+          gesture: "none" as GestureType,
+          phase: "released" as GesturePhase,
+        };
+
+        // Update hand state to start
+        handState.currentPhase = "start";
+        handState.confidence = dominantGesture.confidence;
+        handState.startTime = currentTime;
+        handState.startPosition = currentPosition;
+        handState.frameCount = handState.stableFrameCount;
+
+        const event = this.createGestureEvent(
+          gestureType,
+          "start",
+          hand,
+          currentPosition,
+          handState,
+          dominantGesture
+        );
+
+        return {
+          from: fromState,
+          to: { gesture: gestureType, phase: "start" },
+          event,
+        };
+      }
+
+      return null; // Still accumulating frames
+    }
+
+    // Gesture is already started, handle phase transitions
+    return this.handlePhaseTransition(
+      hand,
+      dominantGesture,
+      currentPosition,
+      currentTime,
+      handState
+    );
+  }
+
+  /**
+   * Handle when a different gesture is detected
    */
   private handleGestureChange(
     hand: HandType,
     newGestureType: GestureType,
-    detectionResult: GestureDetectionResult,
+    dominantGesture: GestureDetectionResult,
     currentPosition: Position,
     currentTime: number,
     handState: GestureHandState
   ): StateTransition | null {
-    // If switching to "none", handle as release
-    if (newGestureType === "none") {
-      return this.handleGestureRelease(
-        hand,
-        currentPosition,
-        currentTime,
-        handState
-      );
-    }
-
-    // If switching from "none" to active gesture, start new gesture
-    if (handState.currentGesture === "none") {
-      return this.startNewGesture(
-        hand,
-        newGestureType,
-        detectionResult,
-        currentPosition,
-        currentTime,
-        handState
-      );
-    }
-
-    // If switching between active gestures, release old and start new
-    const releaseTransition = this.handleGestureRelease(
-      hand,
-      currentPosition,
-      currentTime,
-      handState
+    console.log(
+      `[DEBUG] Gesture change: ${handState.currentGesture} -> ${newGestureType}`
     );
 
-    // Reset state for new gesture
-    this.resetHandState(handState);
-
-    // Start new gesture
-    const startTransition = this.startNewGesture(
-      hand,
-      newGestureType,
-      detectionResult,
-      currentPosition,
-      currentTime,
-      handState
-    );
-
-    // Return the start transition (release will be handled in next frame)
-    return startTransition;
-  }
-
-  /**
-   * Start a new gesture
-   */
-  private startNewGesture(
-    hand: HandType,
-    gestureType: GestureType,
-    detectionResult: GestureDetectionResult,
-    currentPosition: Position,
-    currentTime: number,
-    handState: GestureHandState
-  ): StateTransition | null {
-    // Reset frame counts
-    handState.frameCount = 1;
-    handState.stableFrameCount = 1;
-    handState.transitionFrameCount = 0;
-
-    // Check if we have enough frames to confirm start
-    if (handState.stableFrameCount >= this.config.framesToConfirmStart) {
-      const fromState = {
-        gesture: handState.currentGesture,
-        phase: handState.currentPhase,
-      };
-
-      // Update hand state
-      handState.currentGesture = gestureType;
-      handState.currentPhase = "start";
-      handState.confidence = detectionResult.confidence;
-      handState.startTime = currentTime;
-      handState.startPosition = currentPosition;
-
+    // If we had an active gesture, we need to release it first
+    if (
+      handState.currentGesture !== "none" &&
+      handState.currentPhase !== "released"
+    ) {
+      // Immediately release the old gesture
       const event = this.createGestureEvent(
-        gestureType,
-        "start",
+        handState.currentGesture,
+        "released",
         hand,
         currentPosition,
-        handState,
-        detectionResult
+        handState
       );
-
-      return {
-        from: fromState,
-        to: { gesture: gestureType, phase: "start" },
-        event,
-      };
+      this.eventBus.emit(event);
     }
 
-    return null;
+    // Start tracking the new gesture
+    handState.currentGesture = newGestureType;
+    handState.currentPhase = "released";
+    handState.stableFrameCount = 1; // Start counting
+    handState.frameCount = 0;
+    handState.transitionFrameCount = 0;
+    handState.confidence = dominantGesture.confidence;
+
+    console.log(
+      `[DEBUG] Started tracking new gesture ${newGestureType}, frame count: 1`
+    );
+
+    return null; // Will emit start event after enough frames
   }
 
   /**
@@ -375,67 +429,6 @@ export class GestureStateMachine {
     }
 
     return null;
-  }
-
-  /**
-   * Handle gesture release
-   */
-  private handleGestureRelease(
-    hand: HandType,
-    currentPosition: Position,
-    currentTime: number,
-    handState: GestureHandState
-  ): StateTransition | null {
-    if (handState.currentGesture === "none") {
-      return null;
-    }
-
-    handState.transitionFrameCount++;
-
-    // Check if we have enough frames to confirm release
-    if (handState.transitionFrameCount >= this.config.framesToConfirmRelease) {
-      const fromState = {
-        gesture: handState.currentGesture,
-        phase: handState.currentPhase,
-      };
-
-      const event = this.createGestureEvent(
-        handState.currentGesture,
-        "released",
-        hand,
-        currentPosition,
-        handState
-      );
-
-      // Reset hand state
-      this.resetHandState(handState);
-
-      return {
-        from: fromState,
-        to: { gesture: "none", phase: "released" },
-        event,
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * Update frame counts for stability tracking
-   */
-  private updateFrameCounts(
-    handState: GestureHandState,
-    isGestureActive: boolean
-  ): void {
-    if (isGestureActive) {
-      handState.stableFrameCount++;
-      handState.transitionFrameCount = 0;
-    } else {
-      handState.transitionFrameCount++;
-      if (handState.transitionFrameCount > this.config.errorToleranceFrames) {
-        handState.stableFrameCount = 0;
-      }
-    }
   }
 
   /**
