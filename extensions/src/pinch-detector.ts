@@ -1,14 +1,10 @@
 import {
   HandType,
   HandState,
-  PinchState,
   PinchConfig,
   PinchEvent,
   PinchEventType,
   HandLandmarks,
-  HandLandmark,
-  Handedness,
-  Position,
   defaultPinchConfig,
 } from "./finger-tracker-types";
 
@@ -57,26 +53,25 @@ export class PinchDetector {
    * Check if other fingers (middle, ring, pinky) are extended (not folded)
    */
   private areOtherFingersExtended(landmarks: HandLandmarks): boolean {
-    // Check middle finger (landmarks: tip=12, mcp=9)
+    // Check middle finger (landmarks: tip=12, pip=10)
     const middleTip = landmarks[12];
-    const middleMcp = landmarks[9];
+    const middlePip = landmarks[10];
 
-    // Check ring finger (landmarks: tip=16, mcp=13)
+    // Check ring finger (landmarks: tip=16, pip=14)
     const ringTip = landmarks[16];
-    const ringMcp = landmarks[13];
+    const ringPip = landmarks[14];
 
-    // Check pinky finger (landmarks: tip=20, mcp=17)
+    // Check pinky finger (landmarks: tip=20, pip=18)
     const pinkyTip = landmarks[20];
-    const pinkyMcp = landmarks[17];
+    const pinkyPip = landmarks[18];
 
     // A finger is extended if its tip is above (further from palm) than its base (MCP joint)
     // In MediaPipe coordinates, "above" means smaller y-value (closer to top of image)
-    const isMiddleExtended = middleTip.y < middleMcp.y;
-    const isRingExtended = ringTip.y < ringMcp.y;
-    const isPinkyExtended = pinkyTip.y < pinkyMcp.y;
+    const isMiddleExtended = middleTip.y < middlePip.y;
+    const isRingExtended = ringTip.y < ringPip.y;
+    const isPinkyExtended = pinkyTip.y < pinkyPip.y;
 
-    // Return true if at least one finger is extended
-    return isMiddleExtended || isRingExtended || isPinkyExtended;
+    return isMiddleExtended && isRingExtended && isPinkyExtended;
   }
 
   /**
