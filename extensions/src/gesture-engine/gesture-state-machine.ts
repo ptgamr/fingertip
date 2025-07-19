@@ -258,16 +258,8 @@ export class GestureStateMachine {
     if (handState.currentPhase === "released") {
       handState.stableFrameCount++;
 
-      console.log(
-        `[DEBUG] Accumulating frames for ${gestureType}: ${handState.stableFrameCount}/${this.config.framesToConfirmStart}`
-      );
-
       // Check if we have enough frames to start the gesture
       if (handState.stableFrameCount >= this.config.framesToConfirmStart) {
-        console.log(
-          `[DEBUG] Starting gesture ${gestureType} after ${handState.stableFrameCount} frames`
-        );
-
         const fromState = {
           gesture: "none" as GestureType,
           phase: "released" as GesturePhase,
@@ -371,6 +363,19 @@ export class GestureStateMachine {
     const currentPhase = handState.currentPhase;
     let newPhase: GesturePhase | null = null;
 
+    // Also emit continuous pinch-held events during held phase (for ScrollController compatibility)
+    if (currentPhase === "held") {
+      const heldEvent = this.createGestureEvent(
+        handState.currentGesture,
+        "held",
+        hand,
+        currentPosition,
+        handState,
+        detectionResult
+      );
+      this.eventBus.emit(heldEvent);
+    }
+
     // Determine phase transitions
     switch (currentPhase) {
       case "start":
@@ -391,16 +396,7 @@ export class GestureStateMachine {
         break;
 
       case "move":
-        // Continue in move phase, emit move events
-        const event = this.createGestureEvent(
-          handState.currentGesture,
-          "move",
-          hand,
-          currentPosition,
-          handState,
-          detectionResult
-        );
-        this.eventBus.emit(event);
+        // Continue in move phase - move events already emitted above
         break;
     }
 
@@ -419,6 +415,10 @@ export class GestureStateMachine {
         currentPosition,
         handState,
         detectionResult
+      );
+
+      console.log(
+        `[SCROLL-DEBUG] Phase transition: ${hand} ${fromState.gesture}-${fromState.phase} -> ${handState.currentGesture}-${newPhase}`
       );
 
       return {

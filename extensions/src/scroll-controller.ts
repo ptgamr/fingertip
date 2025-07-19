@@ -32,12 +32,12 @@ export class ScrollController {
   constructor(
     gestureSource: GestureEngine,
     config?: Partial<ScrollConfig>,
-    logLevel: "error" | "info" | "debug" = "info"
+    logLevel: "error" | "info" | "debug" = "info",
   ) {
     this.config = { ...defaultScrollConfig, ...config };
     this.gestureSource = gestureSource;
     this.scrollStates = new Map();
-    this.setLogLevel(logLevel);
+    this.setLogLevel("debug");
 
     // Initialize scroll states for both hands
     this.scrollStates.set("left", this.createInitialScrollState());
@@ -126,7 +126,7 @@ export class ScrollController {
       });
     });
 
-    this.gestureSource.on("pinch-move", (event) => {
+    this.gestureSource.on("pinch-held", (event) => {
       this.handlePinchHeld({
         type: "pinch-held",
         hand: event.hand,
@@ -177,7 +177,7 @@ export class ScrollController {
     this.logInfo(
       `Found scroll target: ${
         state.target === window ? "window" : (state.target as Element)?.tagName
-      }`
+      }`,
     );
 
     // Store original scroll position
@@ -253,7 +253,7 @@ export class ScrollController {
           this.updateCounter++;
           if (this.updateCounter % 10 === 0) {
             this.logDebug(
-              `GSAP onUpdate - applying scroll (update #${this.updateCounter})`
+              `GSAP onUpdate - applying scroll (update #${this.updateCounter})`,
             );
           }
           this.applyScroll(state.target, state.tweenScroll);
@@ -370,7 +370,7 @@ export class ScrollController {
    * Set callback for scrolling state changes
    */
   onScrollingStateChange(
-    callback: (hand: HandType, isScrolling: boolean) => void
+    callback: (hand: HandType, isScrolling: boolean) => void,
   ): void {
     this.onScrollingCallback = callback;
   }

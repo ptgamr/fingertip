@@ -132,7 +132,7 @@ export const defaultGestureDetectorConfig: GestureDetectorConfig = {
   confidenceThreshold: 0.7,
   framesToConfirmStart: 3,
   framesToConfirmHeld: 1,
-  framesToConfirmRelease: 3,
+  framesToConfirmRelease: 5, // Changed from 3 to match previous PinchDetector
   maxHeldFrames: 1,
   errorToleranceFrames: 5,
   movementThreshold: 15,
