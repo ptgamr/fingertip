@@ -21,8 +21,8 @@ export class DomainGestureHandler {
   private dragElement: HTMLElement | null = null;
   private dragOffset: { x: number; y: number } | null = null;
 
-  constructor() {
-    this.gestureEngine = new GestureEngine();
+  constructor(gestureEngine: GestureEngine) {
+    this.gestureEngine = gestureEngine;
     this.currentDomain = window.location.hostname;
     this.checkDomainSupport();
     this.setupEventListeners();
@@ -64,34 +64,6 @@ export class DomainGestureHandler {
     return supportedDomains.some(
       (supportedDomain) =>
         domain === supportedDomain || domain.endsWith("." + supportedDomain)
-    );
-  }
-
-  /**
-   * Process hand landmarks and detect gestures
-   */
-  processHand(
-    hand: HandType,
-    landmarks: HandLandmarks,
-    videoWidth: number,
-    videoHeight: number,
-    isMirrored: boolean = false
-  ): void {
-    if (!this.isEnabled) {
-      console.log(
-        `[DomainGestureHandler] Handler disabled for domain: ${this.currentDomain}`
-      );
-      return;
-    }
-
-    // Process hand landmarks through the gesture engine
-    // The gesture engine will emit events through the event bus
-    this.gestureEngine.processHand(
-      hand,
-      landmarks,
-      videoWidth,
-      videoHeight,
-      isMirrored
     );
   }
 

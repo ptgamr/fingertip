@@ -25,8 +25,8 @@ export class PinchGestureDetector extends BaseGestureDetector {
     // Check if other fingers (middle, ring, pinky) are extended
     const otherFingersExtended = this.areOtherFingersExtended(landmarks);
 
-    // Check if all fingers are folded (fist - not a valid pinch)
-    const allFingersFolded = this.areAllFingersFolded(landmarks);
+    // // Check if all fingers are folded (fist - not a valid pinch)
+    // const allFingersFolded = this.areAllFingersFolded(landmarks);
 
     // Calculate pinch distance
     const pinchDistance = this.calculateDistance(thumbTip, indexTip);
@@ -38,8 +38,7 @@ export class PinchGestureDetector extends BaseGestureDetector {
     const isPinchActive = this.detectPinchWithHysteresis();
 
     // Pinch is valid only if other fingers are extended and not all fingers are folded
-    const isValidPinch =
-      otherFingersExtended && !allFingersFolded && isPinchActive;
+    const isValidPinch = otherFingersExtended && isPinchActive;
 
     const confidence = isValidPinch ? this.calculateConfidence(landmarks) : 0;
 
@@ -51,7 +50,7 @@ export class PinchGestureDetector extends BaseGestureDetector {
         pinchDistance,
         smoothedDistance: this.smoothedDistance,
         otherFingersExtended,
-        allFingersFolded,
+        // allFingersFolded,
         thresholds: {
           enter: this.PINCH_ENTER_THRESHOLD,
           exit: this.PINCH_EXIT_THRESHOLD,

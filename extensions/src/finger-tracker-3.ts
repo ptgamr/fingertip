@@ -31,7 +31,7 @@ export class FingerTracker3 {
       config?.scroll
     );
     this.visualFeedback = new VisualFeedback(config?.visual);
-    this.domainGestureHandler = new DomainGestureHandler();
+    this.domainGestureHandler = new DomainGestureHandler(this.gestureEngine);
 
     // Setup internal event handling
     this.setupInternalEventHandlers();
@@ -99,15 +99,6 @@ export class FingerTracker3 {
 
       // Process hand for gesture detection
       this.gestureEngine.processHand(
-        hand,
-        landmarks,
-        videoWidth,
-        videoHeight,
-        isMirrored
-      );
-
-      // Process hand for domain-specific gestures
-      this.domainGestureHandler.processHand(
         hand,
         landmarks,
         videoWidth,
@@ -198,12 +189,16 @@ export class FingerTracker3 {
 
     this.visualFeedback.updateDebugInfo({
       left: {
-        visible: leftState?.currentGesture !== "none",
+        visible:
+          leftState !== undefined &&
+          (leftState.lastPosition.x !== 0 || leftState.lastPosition.y !== 0),
         pinching: leftState?.currentGesture === "pinch",
         position: leftScreenPos,
       },
       right: {
-        visible: rightState?.currentGesture !== "none",
+        visible:
+          rightState !== undefined &&
+          (rightState.lastPosition.x !== 0 || rightState.lastPosition.y !== 0),
         pinching: rightState?.currentGesture === "pinch",
         position: rightScreenPos,
       },

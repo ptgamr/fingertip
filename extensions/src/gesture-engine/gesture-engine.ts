@@ -1,8 +1,6 @@
 // Main GestureEngine class - unified gesture detection and event system
 import {
   GestureType,
-  GesturePhase,
-  GestureEvent,
   GestureEventType,
   GestureEventListener,
   GestureEngineConfig,
