@@ -6,7 +6,7 @@ import {
   PinchEvent,
   defaultScrollConfig,
 } from "./finger-tracker-types";
-import { PinchDetector } from "./pinch-detector";
+import { GestureEngine } from "./gesture-engine";
 
 interface ScrollState {
   target: Element | Window | null;
@@ -23,19 +23,19 @@ enum LogLevel {
 
 export class ScrollController {
   private config: ScrollConfig;
-  private pinchDetector: PinchDetector;
+  private gestureSource: GestureEngine;
   private scrollStates: Map<HandType, ScrollState>;
   private onScrollingCallback?: (hand: HandType, isScrolling: boolean) => void;
   private logLevel: LogLevel = LogLevel.INFO; // Default to INFO level
   private updateCounter: number = 0; // Counter for onUpdate logging
 
   constructor(
-    pinchDetector: PinchDetector,
+    gestureSource: GestureEngine,
     config?: Partial<ScrollConfig>,
     logLevel: "error" | "info" | "debug" = "info"
   ) {
     this.config = { ...defaultScrollConfig, ...config };
-    this.pinchDetector = pinchDetector;
+    this.gestureSource = gestureSource;
     this.scrollStates = new Map();
     this.setLogLevel(logLevel);
 
@@ -115,12 +115,36 @@ export class ScrollController {
    * Setup event listeners for pinch events
    */
   private setupEventListeners(): void {
-    this.pinchDetector.on("pinch-start", this.handlePinchStart.bind(this));
-    this.pinchDetector.on("pinch-held", this.handlePinchHeld.bind(this));
-    this.pinchDetector.on(
-      "pinch-released",
-      this.handlePinchReleased.bind(this)
-    );
+    // Use new gesture engine events
+    this.gestureSource.on("pinch-start", (event) => {
+      this.handlePinchStart({
+        type: "pinch-start",
+        hand: event.hand,
+        position: event.position,
+        origPinch: event.position,
+        curPinch: event.position,
+      });
+    });
+
+    this.gestureSource.on("pinch-move", (event) => {
+      this.handlePinchHeld({
+        type: "pinch-held",
+        hand: event.hand,
+        position: event.position,
+        origPinch: event.startPosition || event.position,
+        curPinch: event.position,
+      });
+    });
+
+    this.gestureSource.on("pinch-released", (event) => {
+      this.handlePinchReleased({
+        type: "pinch-released",
+        hand: event.hand,
+        position: event.position,
+        origPinch: event.startPosition || event.position,
+        curPinch: event.position,
+      });
+    });
   }
 
   /**
@@ -130,7 +154,6 @@ export class ScrollController {
     this.logInfo(`Pinch start event received for ${event.hand} hand`);
 
     const state = this.scrollStates.get(event.hand)!;
-    const handState = this.pinchDetector.getHandState(event.hand);
 
     // Event position is already in screen coordinates from FingerTracker3
     const screenPos = event.position;
@@ -175,11 +198,6 @@ export class ScrollController {
     // Kill any existing tweens for this hand
     gsap.killTweensOf(state.tweenScroll);
 
-    // Update hand state with scroll info
-    handState.scrollTarget = state.target;
-    handState.origScrollPos = state.origScrollPos;
-    handState.tweenScroll = state.tweenScroll;
-
     state.isScrolling = true;
     this.notifyScrollingState(event.hand, true);
   }
@@ -191,7 +209,6 @@ export class ScrollController {
     this.logDebug(`Pinch held event received for ${event.hand} hand`);
 
     const state = this.scrollStates.get(event.hand)!;
-    const handState = this.pinchDetector.getHandState(event.hand);
 
     if (!state.target) {
       this.logDebug(`No scroll target, skipping scroll`);
@@ -246,9 +263,6 @@ export class ScrollController {
         this.logInfo(`GSAP tween completed for ${event.hand} hand`);
       },
     });
-
-    // Update hand state
-    handState.tweenScroll = state.tweenScroll;
   }
 
   /**
@@ -258,7 +272,6 @@ export class ScrollController {
     this.logInfo(`Pinch released for ${event.hand} hand`);
 
     const state = this.scrollStates.get(event.hand)!;
-    const handState = this.pinchDetector.getHandState(event.hand);
 
     // Kill any active tweens
     gsap.killTweensOf(state.tweenScroll);
@@ -266,9 +279,6 @@ export class ScrollController {
     // Reset state
     state.target = null;
     state.isScrolling = false;
-
-    // Update hand state
-    handState.scrollTarget = null;
 
     this.notifyScrollingState(event.hand, false);
   }

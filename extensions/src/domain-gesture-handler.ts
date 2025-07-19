@@ -1,5 +1,5 @@
 // Domain-specific gesture handlers for different websites
-import { GestureEvent, GestureDetector } from "./gesture-detector";
+import { GestureEngine, GestureEvent } from "./gesture-engine";
 import { HandLandmarks, HandType } from "./finger-tracker-types";
 
 export interface DomainGestureConfig {
@@ -10,7 +10,7 @@ export interface DomainGestureConfig {
 }
 
 export class DomainGestureHandler {
-  private gestureDetector: GestureDetector;
+  private gestureEngine: GestureEngine;
   private currentDomain: string;
   private isEnabled: boolean = false;
   private lastGestureTime: Map<string, number> = new Map();
@@ -19,13 +19,13 @@ export class DomainGestureHandler {
   // Drag-and-drop state management
   private isDragging: boolean = false;
   private dragElement: HTMLElement | null = null;
-  private dragStartPosition: { x: number; y: number } | null = null;
   private dragOffset: { x: number; y: number } | null = null;
 
   constructor() {
-    this.gestureDetector = new GestureDetector();
+    this.gestureEngine = new GestureEngine();
     this.currentDomain = window.location.hostname;
     this.checkDomainSupport();
+    this.setupEventListeners();
   }
 
   /**
@@ -38,6 +38,18 @@ export class DomainGestureHandler {
         `[DomainGestureHandler] Enabled for domain: ${this.currentDomain}`
       );
     }
+  }
+
+  /**
+   * Setup event listeners for gesture events
+   */
+  private setupEventListeners(): void {
+    // Listen for all gesture events
+    this.gestureEngine.onAny((event) => {
+      if (this.isEnabled) {
+        this.handleGestureEvent(event);
+      }
+    });
   }
 
   /**
@@ -72,31 +84,15 @@ export class DomainGestureHandler {
       return;
     }
 
-    const gestureEvent = this.gestureDetector.detectGesture(
+    // Process hand landmarks through the gesture engine
+    // The gesture engine will emit events through the event bus
+    this.gestureEngine.processHand(
       hand,
       landmarks,
       videoWidth,
       videoHeight,
       isMirrored
     );
-
-    // Debug: Log current gesture state every few frames
-    const currentGesture = this.gestureDetector.getCurrentGesture(hand);
-    const currentConfidence = this.gestureDetector.getCurrentConfidence(hand);
-
-    // Log grab gesture attempts more frequently for debugging
-    if (currentGesture === "grab" || currentConfidence > 0.3) {
-      console.log(
-        `[DomainGestureHandler] Gesture state: ${currentGesture} (${hand} hand, confidence: ${currentConfidence.toFixed(2)})`
-      );
-    }
-
-    if (gestureEvent) {
-      console.log(
-        `[DomainGestureHandler] Gesture event detected: ${gestureEvent.type} (${gestureEvent.hand} hand, confidence: ${gestureEvent.confidence.toFixed(2)}, isTransition: ${gestureEvent.isTransition})`
-      );
-      this.handleGestureEvent(gestureEvent);
-    }
   }
 
   /**
@@ -109,7 +105,7 @@ export class DomainGestureHandler {
       this.currentDomain.endsWith(".redmine.catalyst.net.nz")
     ) {
       // Show visual feedback for grab gestures on all domains
-      if (event.type === "grab") {
+      if (event.type === "grab" && event.phase === "start") {
         console.log(
           `[DomainGestureHandler] Grab gesture started: ${event.type} (${event.hand} hand, confidence: ${event.confidence.toFixed(2)})`
         );
@@ -119,8 +115,8 @@ export class DomainGestureHandler {
       return;
     }
 
-    // Only handle transition events to prevent continuous triggering for other domains
-    if (!event.isTransition) {
+    // Only handle start events to prevent continuous triggering for other domains
+    if (event.phase !== "start") {
       return;
     }
 
@@ -156,9 +152,9 @@ export class DomainGestureHandler {
     const now = Date.now();
     const lastTime = this.lastGestureTime.get(gestureKey) || 0;
 
-    // For grab gestures, handle both transitions and continuous updates
+    // For grab gestures, handle different phases
     if (event.type === "grab") {
-      if (event.isTransition) {
+      if (event.phase === "start") {
         // New grab gesture started
         if (now - lastTime >= this.GESTURE_COOLDOWN) {
           this.lastGestureTime.set(gestureKey, now);
@@ -167,14 +163,20 @@ export class DomainGestureHandler {
           );
           this.handleRedmineGestures(event);
         }
-      } else if (this.isDragging) {
+      } else if (event.phase === "move" && this.isDragging) {
         // Continue dragging - update position
         this.updateDrag(event.position);
+      } else if (event.phase === "released" && this.isDragging) {
+        // Grab gesture ended, drop the element
+        console.log(
+          `[DomainGestureHandler] Grab gesture released, dropping element: ${event.type} (${event.hand} hand)`
+        );
+        this.stopDrag(event.position);
       }
-    } else if (this.isDragging && event.isTransition) {
-      // Grab gesture ended, drop the element
+    } else if (this.isDragging && event.phase === "start") {
+      // Other gesture started while dragging, drop the element
       console.log(
-        `[DomainGestureHandler] Grab gesture ended, dropping element: ${event.type} (${event.hand} hand)`
+        `[DomainGestureHandler] Drag ended by gesture: ${event.type} (${event.hand} hand)`
       );
       this.stopDrag(event.position);
     }
@@ -442,7 +444,6 @@ export class DomainGestureHandler {
   ): void {
     this.isDragging = true;
     this.dragElement = element;
-    this.dragStartPosition = { x: position.x, y: position.y };
 
     // Calculate offset from element's top-left corner to grab position
     const rect = element.getBoundingClientRect();
@@ -529,7 +530,7 @@ export class DomainGestureHandler {
     // Reset drag state
     this.isDragging = false;
     this.dragElement = null;
-    this.dragStartPosition = null;
+
     this.dragOffset = null;
 
     console.log("[DomainGestureHandler] Stopped dragging and dropped element");
@@ -1098,21 +1099,23 @@ export class DomainGestureHandler {
    * Reset gesture state for a specific hand
    */
   resetHand(hand: HandType): void {
-    this.gestureDetector.resetHand(hand);
+    this.gestureEngine.resetHand(hand);
   }
 
   /**
    * Get current gesture for debugging
    */
   getCurrentGesture(hand: HandType): string {
-    return this.gestureDetector.getCurrentGesture(hand);
+    const handState = this.gestureEngine.getHandState(hand);
+    return handState?.currentGesture || "none";
   }
 
   /**
    * Get current confidence for debugging
    */
   getCurrentConfidence(hand: HandType): number {
-    return this.gestureDetector.getCurrentConfidence(hand);
+    const handState = this.gestureEngine.getHandState(hand);
+    return handState?.confidence || 0;
   }
 
   /**
@@ -1148,7 +1151,7 @@ export class DomainGestureHandler {
 
     this.isDragging = false;
     this.dragElement = null;
-    this.dragStartPosition = null;
+
     this.dragOffset = null;
   }
 }
