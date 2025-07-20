@@ -1,3 +1,13 @@
+### How to run it
+
+```bash
+cd extensions
+npm install
+npm run build:chrome
+```
+
+Go to chrome://extensions, turn on Developer Mode, Load Unpacked `dist/chrome` folder. 
+
 ### Hand Pose tracking journey
 
 - `Tensorflowjs` is easier to integrate. Got it working the first try via content script. But detection is not reliable
