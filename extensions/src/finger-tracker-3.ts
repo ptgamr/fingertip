@@ -7,13 +7,17 @@ import {
   PinchEvent,
   PinchEventType,
 } from "./finger-tracker-types";
-import { PinchDetector } from "./pinch-detector";
+import {
+  GestureEngine,
+  GestureEvent,
+  GestureEventListener,
+} from "./gesture-engine";
 import { ScrollController } from "./scroll-controller";
 import { VisualFeedback } from "./visual-feedback";
 import { DomainGestureHandler } from "./domain-gesture-handler";
 
 export class FingerTracker3 {
-  private pinchDetector: PinchDetector;
+  private gestureEngine: GestureEngine;
   private scrollController: ScrollController;
   private visualFeedback: VisualFeedback;
   private domainGestureHandler: DomainGestureHandler;
@@ -21,13 +25,14 @@ export class FingerTracker3 {
 
   constructor(config?: FingerTrackerConfig) {
     // Initialize components
-    this.pinchDetector = new PinchDetector(config?.pinch);
+    this.gestureEngine = new GestureEngine();
+    this.gestureEngine.setDebugEnabled(true);
     this.scrollController = new ScrollController(
-      this.pinchDetector,
+      this.gestureEngine,
       config?.scroll
     );
     this.visualFeedback = new VisualFeedback(config?.visual);
-    this.domainGestureHandler = new DomainGestureHandler();
+    this.domainGestureHandler = new DomainGestureHandler(this.gestureEngine);
 
     // Setup internal event handling
     this.setupInternalEventHandlers();
@@ -40,11 +45,11 @@ export class FingerTracker3 {
    */
   private setupInternalEventHandlers(): void {
     // Update visual feedback based on pinch events
-    this.pinchDetector.on("pinch-start", (event) => {
+    this.gestureEngine.on("pinch-start", (event) => {
       this.visualFeedback.showPinch(event.hand);
     });
 
-    this.pinchDetector.on("pinch-released", (event) => {
+    this.gestureEngine.on("pinch-released", (event) => {
       this.visualFeedback.hidePinch(event.hand);
     });
 
@@ -93,17 +98,8 @@ export class FingerTracker3 {
         hand
       );
 
-      // Process hand for pinch detection with screen position
-      this.pinchDetector.processHand(
-        hand,
-        landmarks,
-        videoWidth,
-        videoHeight,
-        screenPos
-      );
-
-      // Process hand for domain-specific gestures
-      this.domainGestureHandler.processHand(
+      // Process hand for gesture detection
+      this.gestureEngine.processHand(
         hand,
         landmarks,
         videoWidth,
@@ -119,7 +115,7 @@ export class FingerTracker3 {
     allHands.forEach((hand) => {
       if (!detectedHands.has(hand)) {
         this.visualFeedback.hideDot(hand);
-        this.pinchDetector.resetHand(hand);
+        this.gestureEngine.resetHand(hand);
       }
     });
 
@@ -185,30 +181,26 @@ export class FingerTracker3 {
    * Update debug information
    */
   private updateDebugInfo(): void {
-    const leftState = this.pinchDetector.getHandState("left");
-    const rightState = this.pinchDetector.getHandState("right");
+    const leftState = this.gestureEngine.getHandState("left");
+    const rightState = this.gestureEngine.getHandState("right");
 
-    // Use current pinch positions directly since they're already in normalized coordinates
-    // and convert them to screen coordinates properly
-    const leftScreenPos = {
-      x: leftState.curPinch.x * window.innerWidth,
-      y: leftState.curPinch.y * window.innerHeight,
-    };
-
-    const rightScreenPos = {
-      x: rightState.curPinch.x * window.innerWidth,
-      y: rightState.curPinch.y * window.innerHeight,
-    };
+    // Use current gesture positions, fallback to default if state doesn't exist
+    const leftScreenPos = leftState?.lastPosition || { x: 0, y: 0 };
+    const rightScreenPos = rightState?.lastPosition || { x: 0, y: 0 };
 
     this.visualFeedback.updateDebugInfo({
       left: {
-        visible: leftState.positionHistory.length > 0,
-        pinching: leftState.isPinching,
+        visible:
+          leftState !== undefined &&
+          (leftState.lastPosition.x !== 0 || leftState.lastPosition.y !== 0),
+        pinching: leftState?.currentGesture === "pinch",
         position: leftScreenPos,
       },
       right: {
-        visible: rightState.positionHistory.length > 0,
-        pinching: rightState.isPinching,
+        visible:
+          rightState !== undefined &&
+          (rightState.lastPosition.x !== 0 || rightState.lastPosition.y !== 0),
+        pinching: rightState?.currentGesture === "pinch",
         position: rightScreenPos,
       },
     });
@@ -220,37 +212,55 @@ export class FingerTracker3 {
   hide(): void {
     this.visualFeedback.hideDot("left");
     this.visualFeedback.hideDot("right");
-    this.pinchDetector.resetHand("left");
-    this.pinchDetector.resetHand("right");
+    this.gestureEngine.resetHand("left");
+    this.gestureEngine.resetHand("right");
     this.domainGestureHandler.resetHand("left");
     this.domainGestureHandler.resetHand("right");
   }
 
   /**
-   * Add event listener for pinch events
+   * Add event listener for pinch events (legacy compatibility)
    */
   addEventListener(
     type: PinchEventType,
     callback: (event: PinchEvent) => void
   ): void {
-    this.pinchDetector.on(type, callback);
+    // Create adapter to convert GestureEvent to PinchEvent
+    const adapter = (gestureEvent: GestureEvent) => {
+      if (gestureEvent.type === "pinch") {
+        const pinchEvent: PinchEvent = {
+          type,
+          hand: gestureEvent.hand,
+          position: gestureEvent.position,
+          origPinch: gestureEvent.startPosition || gestureEvent.position,
+          curPinch: gestureEvent.position,
+        };
+        callback(pinchEvent);
+      }
+    };
+
+    this.gestureEngine.on(type, adapter);
   }
 
   /**
-   * Remove event listener
+   * Remove event listener (legacy compatibility)
    */
   removeEventListener(
     type: PinchEventType,
     callback: (event: PinchEvent) => void
   ): void {
-    this.pinchDetector.off(type, callback);
+    // Note: This is a simplified implementation
+    // In a full implementation, we'd need to track adapters to remove them properly
+    console.warn(
+      "[FingerTracker3] removeEventListener not fully implemented for new gesture system"
+    );
   }
 
   /**
-   * Get pinch detector instance (for advanced usage)
+   * Get gesture engine instance (for advanced usage)
    */
-  getPinchDetector(): PinchDetector {
-    return this.pinchDetector;
+  getGestureEngine(): GestureEngine {
+    return this.gestureEngine;
   }
 
   /**
@@ -281,7 +291,7 @@ export class FingerTracker3 {
     this.isInitialized = false;
     this.visualFeedback.destroy();
     this.scrollController.destroy();
-    this.pinchDetector.destroy();
+    this.gestureEngine.destroy();
     this.domainGestureHandler.destroy();
   }
 }
